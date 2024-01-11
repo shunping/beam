@@ -126,6 +126,12 @@ public abstract class FileBasedSource<T> extends OffsetBasedSource<T> {
 
     // This field will be unused in this mode.
     this.emptyMatchTreatment = EmptyMatchTreatment.DISALLOW;
+
+    LOG.info(
+        "Beam-issue-29146: Create a filebased source on {} from {} to {}",
+        fileMetadata.resourceId().toString(),
+        startOffset,
+        endOffset);
   }
 
   /**
