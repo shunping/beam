@@ -10,6 +10,8 @@ import river.anomaly
 
 import apache_beam as beam
 from apache_beam.utils import timestamp
+from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
+from apache_beam.coders import DillCoder
 
 import river
 import river.naive_bayes
@@ -88,12 +90,31 @@ class AnomalyDetector:
       return key, (x, y, y_pred)
 
 
+class ScoreAndLearn(beam.DoFn):
+  MODEL_STATE_INDEX = ReadModifyWriteStateSpec('model_state', DillCoder())
+
+  def __init__(self, detector):
+    self.detector = detector
+
+  def process(self,
+              element,
+              model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
+              **kwargs):
+
+    _, elem = element
+    model = model_state.read()
+    if model is None:
+      model = self.detector
+
+    yield model.score_and_learn(elem)
+
+    model_state.write(model)
+
 class AnomalyDetection(beam.PTransform[beam.PCollection[InputT],
                                        beam.PCollection[OutputT]]):
 
   def __init__(self, detectors:Optional[List[AnomalyDetector]] = None, agg_strategy = None) -> None:
     self._detectors = detectors
-
 
   def maybe_add_key(self, element):
     # TODO: may not need to add keys if there is an existing one?
@@ -117,7 +138,9 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[InputT],
 
     model_results = {}
     for detector in self._detectors:
-      model_results[detector.label] = (data | f"Score with {detector}" >> beam.Map(detector.score_and_learn))
+      model_results[detector.label] = (data
+                                       | f"Add dummy key to the input of {detector}" >> beam.WithKeys(1)
+                                       | f"Score with {detector}" >> beam.ParDo(ScoreAndLearn(detector)))
 
     merged = model_results | beam.CoGroupByKey() | "Remove key" >> beam.Map(self.extract_results)
 
