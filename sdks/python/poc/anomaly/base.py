@@ -6,6 +6,8 @@ from typing import TypeVar
 from typing import List
 import uuid
 
+import river.anomaly
+
 import apache_beam as beam
 from apache_beam.utils import timestamp
 
@@ -34,22 +36,34 @@ class LogisticRegressionDetector(compose.Pipeline):
 
 KNOWN_SUPERVISED_ALGORITHMS= {
   "LogisticRegression": LogisticRegressionDetector,
+  "LR": LogisticRegressionDetector,
   "NaiveBayesian": river.naive_bayes.GaussianNB,
+  "NB": river.naive_bayes.GaussianNB,
 }
 
-KNOWN_UNSUPERVISED_ALGORITHMS= {
+KNOWN_UNSUPERVISED_ALGORITHMS = {
+  "IncrementalLocalOutlierFactor": river.anomaly.lof.LocalOutlierFactor,
+  "iLOF": river.anomaly.lof.LocalOutlierFactor,
+  "HalfSpaceTree": river.anomaly.HalfSpaceTrees,
+  "HSF": river.anomaly.HalfSpaceTrees,
+  "OneClassSVM": river.anomaly.OneClassSVM,
 }
+
+KNOWN_ALGORITHMS = KNOWN_SUPERVISED_ALGORITHMS | KNOWN_UNSUPERVISED_ALGORITHMS
 
 class AnomalyDetector:
   def __init__(self, algorithm:Optional[str] = None, label:Optional[str] = None, *args, **kwargs) -> None:
-    if algorithm in KNOWN_SUPERVISED_ALGORITHMS:
-      detector = KNOWN_SUPERVISED_ALGORITHMS[algorithm]
+    if algorithm in KNOWN_ALGORITHMS:
+      detector = KNOWN_ALGORITHMS[algorithm]
       self._underlying = detector(*args, **kwargs)
-
       if label:
         self._label = label
       else:
         self._label = f"{algorithm}_{uuid.uuid4().hex}"
+      if algorithm in KNOWN_SUPERVISED_ALGORITHMS:
+        self._is_supervised = True
+      else:
+        self._is_supervised = False
     else:
       raise NotImplementedError
 
@@ -57,11 +71,22 @@ class AnomalyDetector:
   def label(self):
     return self._label
 
+  @property
+  def is_supervised(self):
+    return self._is_supervised
+
   def score_and_learn(self, element):
-    key, (x, y) = element
-    y_pred = self._underlying.predict_one(x)
-    self._underlying.learn_one(x, y)
-    return key, (x, y, y_pred)
+    if self.is_supervised:
+      key, (x, y) = element
+      y_pred = self._underlying.predict_one(x)
+      self._underlying.learn_one(x, y)
+      return key, (x, y, y_pred)
+    else:
+      key, (x, y) = element
+      y_pred = self._underlying.score_one(x)
+      self._underlying.learn_one(x)
+      return key, (x, y, y_pred)
+
 
 class AnomalyDetection(beam.PTransform[beam.PCollection[InputT],
                                        beam.PCollection[OutputT]]):
