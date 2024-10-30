@@ -1,5 +1,6 @@
 """Base classes for anomaly detection"""
 
+from abc import ABC, abstractmethod
 import dataclasses
 from dataclasses import dataclass
 from typing import Optional
@@ -9,6 +10,7 @@ from typing import Union
 
 import apache_beam as beam
 
+EPSILON = 1e-12
 
 @dataclass(frozen=True)
 class AnomalyDecision():
@@ -25,6 +27,16 @@ class AnomalyPrediction():
   data: beam.Row
   decision: AnomalyDecision
 
+
+class BaseAnomalyModel(ABC):
+
+  @abstractmethod
+  def learn_one(self, x: beam.Row) -> None:
+    pass
+
+  @abstractmethod
+  def score_one(self, x: beam.Row) -> float:
+    pass
 
 class BaseThresholdFunc(beam.DoFn):
 
