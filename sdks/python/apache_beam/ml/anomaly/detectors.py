@@ -9,10 +9,10 @@ import river
 import river.anomaly
 
 import apache_beam as beam
-from poc.anomaly import univariate
-from poc.anomaly.base import AggregationStrategy
-from poc.anomaly.base import BaseThresholdFunc
-from poc.anomaly.aggregations import average_score
+from apache_beam.ml.anomaly import univariate
+from apache_beam.ml.anomaly.base import AggregationStrategy
+from apache_beam.ml.anomaly.base import BaseThresholdFunc
+from apache_beam.ml.anomaly.aggregations import average_score
 
 
 class BaseAnomalyModel(ABC):

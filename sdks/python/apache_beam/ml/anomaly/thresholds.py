@@ -5,11 +5,10 @@ from typing import Union
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
+from apache_beam.ml.anomaly import univariate
+from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import BaseThresholdFunc
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
-
-from poc.anomaly import univariate
-from poc.anomaly.base import AnomalyPrediction
-from poc.anomaly.base import BaseThresholdFunc
 
 
 class FixedThreshold(BaseThresholdFunc):

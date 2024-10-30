@@ -1,10 +1,11 @@
 import csv
 import logging
-import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
 
 import numpy as np
-from poc import anomaly
+
+import apache_beam as beam
+import apache_beam.ml.anomaly as anomaly
+from apache_beam.options.pipeline_options import PipelineOptions
 
 # INPUT = "/Users/shunping/Projects/beam-dev-python-anomaly/sdks/python/poc/phishing.csv"
 INPUT = "/Users/shunping/Projects/beam-dev-python-anomaly/sdks/python/poc/synthetic_data.csv"

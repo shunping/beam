@@ -1,6 +1,5 @@
-
-from poc.anomaly.detectors import AnomalyDetector
-from poc.anomaly.detectors import EnsembleAnomalyDetector
-from poc.anomaly.thresholds import *
-from poc.anomaly.transforms import AnomalyDetection
-from poc.anomaly.aggregations import *
+from apache_beam.ml.anomaly.aggregations import *
+from apache_beam.ml.anomaly.detectors import AnomalyDetector
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
+from apache_beam.ml.anomaly.thresholds import *
+from apache_beam.ml.anomaly.transforms import AnomalyDetection

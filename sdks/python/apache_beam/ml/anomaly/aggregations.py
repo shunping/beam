@@ -4,7 +4,7 @@ import math
 import statistics
 from typing import Iterable
 
-from poc.anomaly.base import AnomalyDecision
+from apache_beam.ml.anomaly.base import AnomalyDecision
 
 
 def majority_vote(outlier_label=1, normal_label=0, tie_breaker=0, include_history=False):

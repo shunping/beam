@@ -1,8 +1,9 @@
 
 from collections import deque
+import math
 
 import numpy as np
-import math
+
 
 class BaseTracker:
   def push(self, x):

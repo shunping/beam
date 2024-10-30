@@ -15,11 +15,11 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 from apache_beam.runners.common import DoFnSignature
 
-from poc.anomaly.base import AnomalyDecision
-from poc.anomaly.base import AnomalyPrediction
-from poc.anomaly.detectors import AnomalyDetector
-from poc.anomaly.detectors import EnsembleAnomalyDetector
-from poc.anomaly.base import AggregationStrategy
+from apache_beam.ml.anomaly.base import AggregationStrategy
+from apache_beam.ml.anomaly.base import AnomalyDecision
+from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.detectors import AnomalyDetector
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 
 TempKey = TypeVar('TempKey', int, Any)
 
