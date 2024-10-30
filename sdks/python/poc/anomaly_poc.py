@@ -4,7 +4,7 @@ import logging
 import numpy as np
 
 import apache_beam as beam
-import apache_beam.ml.anomaly as anomaly
+from apache_beam.ml import anomaly
 from apache_beam.options.pipeline_options import PipelineOptions
 
 # INPUT = "/Users/shunping/Projects/beam-dev-python-anomaly/sdks/python/poc/phishing.csv"
