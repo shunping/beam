@@ -20,10 +20,10 @@ class FixedThreshold(BaseThresholdFunc):
   def threshold(self):
     return self._threshold
 
-  def process(self, element: Tuple[Any, AnomalyPrediction],
-              **kwargs) -> Iterable[Tuple[Any, AnomalyPrediction]]:
-    key, prediction = element
-    yield key, self._update_prediction(prediction)
+  def process(self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+    k1, (k2, prediction) = element
+    yield k1, (k2, self._update_prediction(prediction))
 
 
 class QuantileThreshold(BaseThresholdFunc):
@@ -40,14 +40,14 @@ class QuantileThreshold(BaseThresholdFunc):
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
               tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Tuple[Any, Any], AnomalyPrediction]]:
-    key1, (key2, prediction) = element
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+    k1, (k2, prediction) = element
 
     self._tracker = tracker_state.read()  # type: ignore
     if self._tracker is None:
       self._tracker = univariate.SimpleQuantile(100, self._quantile)
     self._tracker.push(prediction.decision.score)
 
-    yield (key1, key2), self._update_prediction(prediction)
+    yield k1, (k2, self._update_prediction(prediction))
 
     tracker_state.write(self._tracker)  # type: ignore
