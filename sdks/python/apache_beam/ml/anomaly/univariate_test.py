@@ -21,6 +21,7 @@ import unittest
 
 from apache_beam.ml.anomaly import univariate
 
+
 class MeanTest(unittest.TestCase):
   def test_mean(self):
     mt = univariate.SimpleMeanTracker(3)

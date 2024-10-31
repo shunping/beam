@@ -20,8 +20,8 @@ from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import BaseAnomalyModel
 from apache_beam.ml.anomaly.base import EPSILON
 
-class MedianAbsoluteDeviation(BaseAnomalyModel):
 
+class MedianAbsoluteDeviation(BaseAnomalyModel):
   def __init__(self, window_size=10, scale_factor=0.67449):
     self._median_tracker = univariate.SimpleMedianTracker(window_size)
     self._mad_tracker = univariate.SimpleMADTracker(window_size)

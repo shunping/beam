@@ -29,7 +29,6 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class FixedThreshold(BaseThresholdFunc):
-
   def __init__(self, threshold: Union[int, float]):
     self._threshold = threshold
 
@@ -37,8 +36,9 @@ class FixedThreshold(BaseThresholdFunc):
   def threshold(self):
     return self._threshold
 
-  def process(self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+  def process(
+      self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
     k1, (k2, prediction) = element
     yield k1, (k2, self._update_prediction(prediction))
 
@@ -54,10 +54,11 @@ class QuantileThreshold(BaseThresholdFunc):
   def threshold(self) -> float:
     return self._tracker.get()  # type: ignore
 
-  def process(self,
-              element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
-              tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+  def process(
+      self,
+      element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+      tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
+      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
     k1, (k2, prediction) = element
 
     self._tracker = tracker_state.read()  # type: ignore

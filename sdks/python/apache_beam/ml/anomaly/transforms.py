@@ -84,10 +84,11 @@ class _EvaluateWithAUC(beam.DoFn):
     self._window_size = window_size
     self._target = target
 
-  def process(self,
-              element: Tuple[KeyT, AnomalyPrediction],
-              tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[KeyT, AnomalyPrediction]]:
+  def process(
+      self,
+      element: Tuple[KeyT, AnomalyPrediction],
+      tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
+      **kwargs) -> Iterable[Tuple[KeyT, AnomalyPrediction]]:
 
     key, prediction = element
     data = prediction.data
@@ -116,14 +117,15 @@ class _EvaluateWithAUC(beam.DoFn):
 
 class _RunDetectors(
     beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]],
-                    beam.PCollection[Tuple[KeyT, Tuple[TempKeyT,
-                                                       AnomalyPrediction]]]],
+                    beam.PCollection[Tuple[KeyT,
+                                           Tuple[TempKeyT,
+                                                 AnomalyPrediction]]]],
     Generic[KeyT, TempKeyT]):
-
-  def __init__(self,
-               model_id,
-               detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[AggregationStrategy] = None):
+  def __init__(
+      self,
+      model_id,
+      detectors: Iterable[AnomalyDetector],
+      aggregation_strategy: Optional[AggregationStrategy] = None):
     self._label = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
@@ -135,15 +137,22 @@ class _RunDetectors(
     for detector in self._detectors:
       if isinstance(detector, EnsembleAnomalyDetector):
         score_result = (
-            input | _RunDetectors(detector.label, detector._weak_learners,
-                                  detector._aggregation_strategy)
-            | f"Reset model label for ensemble ({detector})" >>
-            beam.MapTuple(lambda k, v, label=detector.label: (k, (
-                v[0],
-                AnomalyPrediction(
-                    data=v[1].data,
-                    decision=dataclasses.replace(v[1].decision, model=label)))))
-            .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
+            input | _RunDetectors(
+                detector.label,
+                detector._weak_learners,
+                detector._aggregation_strategy)
+            | f"Reset model label for ensemble ({detector})" >> beam.MapTuple(
+                lambda k,
+                v,
+                label=detector.label: (
+                    k,
+                    (
+                        v[0],
+                        AnomalyPrediction(
+                            data=v[1].data,
+                            decision=dataclasses.replace(
+                                v[1].decision, model=label))))).
+            with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
       else:
         score_result = (
             input | f"Score and learn ({detector})" >> beam.ParDo(
@@ -152,13 +161,15 @@ class _RunDetectors(
 
       if detector._threshold_func:
         if DoFnSignature(detector._threshold_func).is_stateful_dofn():
-          model_results.append(score_result
-                               | f"Run threshold function ({detector})" >>
-                               beam.ParDo(detector._threshold_func))
+          model_results.append(
+              score_result
+              | f"Run threshold function ({detector})" >> beam.ParDo(
+                  detector._threshold_func))
         else:
-          model_results.append(score_result
-                               | f"Run threshold function ({detector})" >>
-                               beam.ParDo(detector._threshold_func))
+          model_results.append(
+              score_result
+              | f"Run threshold function ({detector})" >> beam.ParDo(
+                  detector._threshold_func))
       else:
         model_results.append(score_result)
 
@@ -170,9 +181,12 @@ class _RunDetectors(
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0], v[1].data), v[1].decision))
           | beam.GroupByKey()
-          | beam.MapTuple(lambda k, v, agg=self._aggregation_strategy: (k[0], (
-              k[1], AnomalyPrediction(data=k[2], decision=agg(v)))))
-          .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
+          | beam.MapTuple(
+              lambda k,
+              v,
+              agg=self._aggregation_strategy:
+              (k[0], (k[1], AnomalyPrediction(data=k[2], decision=agg(v))))).
+          with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
 
     return ret
 
@@ -181,12 +195,12 @@ class AnomalyDetection(
     beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
                     beam.PCollection[Tuple[KeyT, AnomalyPrediction]]],
     Generic[KeyT, TempKeyT]):
-
-  def __init__(self,
-               detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[AggregationStrategy] = None,
-               is_nested: bool = False,
-               with_auc: bool = False) -> None:
+  def __init__(
+      self,
+      detectors: Iterable[AnomalyDetector],
+      aggregation_strategy: Optional[AggregationStrategy] = None,
+      is_nested: bool = False,
+      with_auc: bool = False) -> None:
     self._detectors = detectors
     self._with_auc = with_auc
     self._is_nested = is_nested

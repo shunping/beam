@@ -27,15 +27,15 @@ from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
 class AnomalyDetector:
-
-  def __init__(self,
-               algorithm: str,
-               id: Optional[str] = None,
-               features: Optional[List[str]] = None,
-               target: Optional[str] = None,
-               threshold_func: Optional[BaseThresholdFunc] = None,
-               *args,
-               **kwargs) -> None:
+  def __init__(
+      self,
+      algorithm: str,
+      id: Optional[str] = None,
+      features: Optional[List[str]] = None,
+      target: Optional[str] = None,
+      threshold_func: Optional[BaseThresholdFunc] = None,
+      *args,
+      **kwargs) -> None:
     algorithm = algorithm.lower()
     if algorithm in KNOWN_ALGORITHMS:
       detector = KNOWN_ALGORITHMS[algorithm]
@@ -63,7 +63,6 @@ class AnomalyDetector:
 
 
 class EnsembleAnomalyDetector(AnomalyDetector):
-
   def __init__(
       self,
       n: int = 10,

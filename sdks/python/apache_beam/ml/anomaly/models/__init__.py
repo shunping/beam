@@ -25,7 +25,7 @@ from apache_beam.ml.anomaly.models.mad import MedianAbsoluteDeviation
 from apache_beam.ml.anomaly.models.loda import LodaWeakLearner
 
 try:
-  from apache_beam.ml.anomaly.models.river import LocalOutlierFactor # type: ignore
+  from apache_beam.ml.anomaly.models.river import LocalOutlierFactor  # type: ignore
 except ImportError:
   logging.warning("Unable to import river model 'LocalOutlierFactor'")
   LocalOutlierFactor = None

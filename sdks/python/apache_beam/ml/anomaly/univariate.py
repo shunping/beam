@@ -58,7 +58,10 @@ class SimpleStdevTracker(BatchTracker):
 class SimpleMADTracker(BatchTracker):
   def get(self):
     median = np.nanmedian(self._queue)
-    return np.nanmedian([abs(x - median) if not math.isnan(x) else float('nan') for x in self._queue])
+    return np.nanmedian([
+        abs(x - median) if not math.isnan(x) else float('nan')
+        for x in self._queue
+    ])
 
 
 class SimpleHistogram(BatchTracker):
@@ -85,7 +88,7 @@ class RollingTracker(BaseTracker):
   def __init__(self, window_size):
     self._window_size = window_size
     self._n = 0
-    self._queue = deque(maxlen=window_size+1)
+    self._queue = deque(maxlen=window_size + 1)
 
   def push(self, x):
     self._queue.append(x)
@@ -150,6 +153,6 @@ class RollingStdevTracker(RollingTracker):
 
   def get(self):
     if self._n < 2:
-      return float("nan") # keep it consistent with numpy
+      return float("nan")  # keep it consistent with numpy
     dof = min(self._n, self._window_size) - 1
     return math.sqrt(self._m2 / dof)

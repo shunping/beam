@@ -29,6 +29,7 @@ import apache_beam as beam
 
 EPSILON = 1e-12
 
+
 @dataclass(frozen=True)
 class AnomalyDecision():
   model: str = ""
@@ -46,7 +47,6 @@ class AnomalyPrediction():
 
 
 class BaseAnomalyModel(ABC):
-
   @abstractmethod
   def learn_one(self, x: beam.Row) -> None:
     pass
@@ -55,14 +55,14 @@ class BaseAnomalyModel(ABC):
   def score_one(self, x: beam.Row) -> float:
     pass
 
-class BaseThresholdFunc(beam.DoFn):
 
+class BaseThresholdFunc(beam.DoFn):
   @property
   def threshold(self) -> Union[int, float]:
     raise NotImplementedError
 
-  def _update_prediction(self,
-                         prediction: AnomalyPrediction) -> AnomalyPrediction:
+  def _update_prediction(
+      self, prediction: AnomalyPrediction) -> AnomalyPrediction:
     pred: int = 0 if prediction.decision.score < self.threshold else 1  # type: ignore
     return dataclasses.replace(
         prediction,
@@ -71,5 +71,5 @@ class BaseThresholdFunc(beam.DoFn):
 
 
 class AggregationStrategy(Protocol):
-  def __call__(self, decisions:Iterable[AnomalyDecision]) -> AnomalyDecision:
+  def __call__(self, decisions: Iterable[AnomalyDecision]) -> AnomalyDecision:
     ...

@@ -24,7 +24,6 @@ from apache_beam.ml.anomaly.base import EPSILON
 
 
 class StandardAbsoluteDeviation(BaseAnomalyModel):
-
   def __init__(self, sub_stat="mean", window_size=10, sub_stat_tracker=None):
     if sub_stat_tracker is None:
       if sub_stat == 'mean':
