@@ -49,11 +49,11 @@ class AnomalyPrediction():
 class BaseAnomalyModel(ABC):
   @abstractmethod
   def learn_one(self, x: beam.Row) -> None:
-    pass
+    ...
 
   @abstractmethod
   def score_one(self, x: beam.Row) -> float:
-    pass
+    ...
 
 
 class BaseThresholdFunc(beam.DoFn):
@@ -63,7 +63,7 @@ class BaseThresholdFunc(beam.DoFn):
 
   def _update_prediction(
       self, prediction: AnomalyPrediction) -> AnomalyPrediction:
-    pred: int = 0 if prediction.decision.score < self.threshold else 1  # type: ignore
+    pred: int = 0 if prediction.decision.score < self.threshold else 1
     return dataclasses.replace(
         prediction,
         decision=dataclasses.replace(
