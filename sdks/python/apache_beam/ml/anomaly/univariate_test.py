@@ -19,7 +19,7 @@ import logging
 import math
 import unittest
 
-from poc.anomaly import univariate
+from apache_beam.ml.anomaly import univariate
 
 class MeanTest(unittest.TestCase):
   def test_mean(self):
