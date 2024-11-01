@@ -19,9 +19,9 @@ from typing import Optional
 from typing import List
 import uuid
 
-from apache_beam.ml.anomaly.base import AggregationStrategy
+from apache_beam.ml.anomaly.base import BaseAggregation
 from apache_beam.ml.anomaly.base import BaseThresholdFunc
-from apache_beam.ml.anomaly.aggregations import average_score
+from apache_beam.ml.anomaly.aggregations import AverageScore
 
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
@@ -67,7 +67,7 @@ class EnsembleAnomalyDetector(AnomalyDetector):
       self,
       n: int = 10,
       label: Optional[str] = None,
-      aggregation_strategy: Optional[AggregationStrategy] = average_score(),
+      aggregation_strategy: Optional[BaseAggregation] = AverageScore(),
       **kwargs):
     weak_learner_alg = kwargs["algorithm"]
     kwargs["algorithm"] = "ensemble"

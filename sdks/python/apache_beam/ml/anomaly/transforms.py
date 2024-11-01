@@ -29,9 +29,9 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 from apache_beam.runners.common import DoFnSignature
 
-from apache_beam.ml.anomaly.base import AggregationStrategy
 from apache_beam.ml.anomaly.base import AnomalyDecision
 from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import BaseAggregation
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 
@@ -125,7 +125,7 @@ class _RunDetectors(
       self,
       model_id,
       detectors: Iterable[AnomalyDetector],
-      aggregation_strategy: Optional[AggregationStrategy] = None):
+      aggregation_strategy: Optional[BaseAggregation] = None):
     self._label = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
@@ -198,7 +198,7 @@ class AnomalyDetection(
   def __init__(
       self,
       detectors: Iterable[AnomalyDetector],
-      aggregation_strategy: Optional[AggregationStrategy] = None,
+      aggregation_strategy: Optional[BaseAggregation] = None,
       is_nested: bool = False,
       with_auc: bool = False) -> None:
     self._detectors = detectors

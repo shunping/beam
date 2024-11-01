@@ -70,6 +70,6 @@ class BaseThresholdFunc(beam.DoFn):
             prediction.decision, prediction=pred, threshold=self.threshold))
 
 
-class AggregationStrategy(Protocol):
+class BaseAggregation(Protocol):
   def __call__(self, decisions: Iterable[AnomalyDecision]) -> AnomalyDecision:
     ...

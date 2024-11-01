@@ -1,0 +1,109 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import logging
+import unittest
+
+from apache_beam.ml.anomaly.base import AnomalyDecision
+from apache_beam.ml.anomaly import aggregations
+
+
+class MajorityVoteTest(unittest.TestCase):
+
+  def test_default(self):
+    normal = AnomalyDecision(prediction=0)
+    outlier = AnomalyDecision(prediction=1)
+    self._vote = aggregations.MajorityVote()
+
+    self.assertEqual(self._vote([]), AnomalyDecision())
+
+    self.assertEqual(self._vote([normal]), normal)
+
+    self.assertEqual(self._vote([outlier]), outlier)
+
+    self.assertEqual(self._vote([outlier, normal, normal]), normal)
+
+    self.assertEqual(self._vote([outlier, normal, outlier]), outlier)
+
+    # use normal to break ties by default
+    self.assertEqual(self._vote([outlier, normal]), normal)
+
+  def test_tie_breaker(self):
+    normal = AnomalyDecision(prediction=0)
+    outlier = AnomalyDecision(prediction=1)
+    self._vote = aggregations.MajorityVote(tie_breaker=1)
+
+    self.assertEqual(self._vote([outlier, normal]), outlier)
+
+
+class AllVoteTest(unittest.TestCase):
+
+  def test_default(self):
+    normal = AnomalyDecision(prediction=0)
+    outlier = AnomalyDecision(prediction=1)
+    self._vote = aggregations.AllVote()
+
+    self.assertEqual(self._vote([]), AnomalyDecision())
+
+    self.assertEqual(self._vote([normal]), normal)
+
+    self.assertEqual(self._vote([outlier]), outlier)
+
+    # outlier is only labeled when everyone is outlier
+    self.assertEqual(self._vote([normal, normal, normal]), normal)
+    self.assertEqual(self._vote([outlier, normal, normal]), normal)
+    self.assertEqual(self._vote([outlier, normal, outlier]), normal)
+    self.assertEqual(self._vote([outlier, outlier, outlier]), outlier)
+
+
+class AnyVoteTest(unittest.TestCase):
+
+  def test_default(self):
+    normal = AnomalyDecision(prediction=0)
+    outlier = AnomalyDecision(prediction=1)
+    vote = aggregations.AnyVote()
+
+    self.assertEqual(vote([]), AnomalyDecision())
+
+    self.assertEqual(vote([normal]), normal)
+
+    self.assertEqual(vote([outlier]), outlier)
+
+    # outlier is labeled when at least one is outlier
+    self.assertEqual(vote([normal, normal, normal]), normal)
+    self.assertEqual(vote([outlier, normal, normal]), outlier)
+    self.assertEqual(vote([outlier, normal, outlier]), outlier)
+    self.assertEqual(vote([outlier, outlier, outlier]), outlier)
+
+
+class AverageScoreTest(unittest.TestCase):
+
+  def test_default(self):
+    avg = aggregations.AverageScore()
+
+    self.assertEqual(avg([]), AnomalyDecision())
+
+    self.assertEqual(avg([AnomalyDecision(score=1)]), AnomalyDecision(score=1))
+
+    self.assertEqual(
+        avg([AnomalyDecision(score=1),
+             AnomalyDecision(score=2)]), AnomalyDecision(score=1.5))
+
+
+if __name__ == '__main__':
+  logging.getLogger().setLevel(logging.INFO)
+  unittest.main()

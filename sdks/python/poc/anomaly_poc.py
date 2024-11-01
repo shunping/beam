@@ -100,7 +100,7 @@ def run():
         | anomaly.AnomalyDetection(
             detectors=detectors,
             with_auc=True,
-            aggregation_strategy=anomaly.any_vote(),
+            aggregation_strategy=anomaly.AnyVote(),
         ))
 
     _ = results | beam.Map(debug_print)
