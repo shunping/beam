@@ -100,8 +100,8 @@ class RollingTracker(BaseTracker):
 
 
 class RollingMeanTracker(RollingTracker):
-  # This is an modified version of https://en.wikipedia.org/wiki/Moving_average,
-  # that takes care of NaN within the window.
+  # This is a modified version of https://en.wikipedia.org/wiki/Moving_average,
+  # that takes care of NaN within a window.
 
   def __init__(self, window_size):
     super().__init__(window_size)
@@ -131,40 +131,52 @@ class RollingMeanTracker(RollingTracker):
 
   def get(self):
     if self._n < 1:
-      return float("nan")
+      return float("nan")  # keep it consistent with numpy
 
     return self._mean
 
 
 class RollingStdevTracker(RollingTracker):
+  # This is a modified version of the following two algorithms:
+  #   https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm
+  #   https://jonisalonen.com/2014/efficient-and-accurate-rolling-standard-deviation/
+
   def __init__(self, window_size):
     super().__init__(window_size)
     self._mean = 0
     self._m2 = 0
+    self._n = 0
 
   def push(self, x):
-    if math.isnan(x):
-      return
-
-    # self._n += 1
     super().push(x)
-    if len(self._queue) <= self._window_size:
-      # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm
-      delta = x - self._mean
-      self._mean += delta / len(self._queue)
-      delta2 = x - self._mean
-      self._m2 += delta * delta2
+
+    if not math.isnan(x):
+      self._n += 1
+      delta1 = x - self._mean
     else:
-      # Refer to https://jonisalonen.com/2014/efficient-and-accurate-rolling-standard-deviation/
-      old_x = super().pop()
-      delta = x - old_x
-      delta2 = old_x - self._mean
-      self._mean += delta / self._window_size
-      delta3 = x - self._mean
-      self._m2 += delta * delta2 + delta * delta3
+      delta1 = 0
+
+    if (len(self._queue) > self._window_size and
+        not math.isnan(old_x := super().pop())):
+      self._n -= 1
+      delta2 = self._mean - old_x
+    else:
+      delta2 = 0
+
+    if self._n > 0:
+      self._mean += (delta1 + delta2) / self._n
+
+      if delta1 > 0:
+        self._m2 += delta1 * (x - self._mean)
+      if delta2 > 0:
+        self._m2 += delta2 * (old_x - self._mean)
+    else:
+      self._mean = 0
+      self._m2 = 0
+
 
   def get(self):
-    if len(self._queue) < 2:
+    if self._n < 2:
       return float("nan")  # keep it consistent with numpy
-    dof = min(len(self._queue), self._window_size) - 1
+    dof = min(self._n, self._window_size) - 1
     return math.sqrt(self._m2 / dof)

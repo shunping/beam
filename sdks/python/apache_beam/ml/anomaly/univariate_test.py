@@ -46,16 +46,17 @@ class MeanTest(unittest.TestCase):
   def test_mean_with_nan(self, tracker):
     mt = tracker(3)
 
-    mt.push(float('NaN'))
+    mt.push(float('nan'))
     self.assertTrue(math.isnan(mt.get()))  # NaN is ignored
     mt.push(1)
     self.assertEqual(mt.get(), 1.0)
-    mt.push(float('NaN'))
-    self.assertEqual(mt.get(), 1.0)
 
-    mt.push(float('NaN'))
+    # flush the only number out
+    mt.push(float('nan'))
     self.assertEqual(mt.get(), 1.0)
-    mt.push(float('NaN'))
+    mt.push(float('nan'))
+    self.assertEqual(mt.get(), 1.0)
+    mt.push(float('nan'))
     self.assertTrue(math.isnan(mt.get()))  # all values in the tracker are NaN
 
   @parameterized.expand([univariate.RollingMeanTracker])
@@ -85,6 +86,35 @@ class StdevTest(unittest.TestCase):
     self.assertEqual(mt.get(), 1.0)
     mt.push(10)
     self.assertEqual(mt.get(), 4.358898943540674)
+
+  @parameterized.expand(
+      [univariate.SimpleStdevTracker, univariate.RollingStdevTracker])
+  def test_stdev_with_nan(self, tracker):
+    mt = tracker(3)
+
+    mt.push(float('nan'))
+    self.assertTrue(math.isnan(mt.get()))  # NaN is ignored
+
+    mt.push(float('nan'))
+    self.assertTrue(math.isnan(mt.get()))  # NaN is ignored
+
+    mt.push(1)
+    self.assertTrue(math.isnan(mt.get()))
+    mt.push(2)
+    self.assertEqual(mt.get(), 0.7071067811865476)
+    mt.push(3)
+    self.assertEqual(mt.get(), 1.0)
+
+    # flush the only number out
+    mt.push(float('nan'))
+    self.assertEqual(mt.get(), 0.7071067811865476)
+
+    mt.push(float('nan'))
+    self.assertTrue(math.isnan(mt.get()))
+
+    mt.push(float('nan'))
+    print(mt.get())
+    self.assertTrue(math.isnan(mt.get()))
 
 
 class MedianTest(unittest.TestCase):
