@@ -59,6 +59,9 @@ class MeanTest(unittest.TestCase):
     mt.push(float('nan'))
     self.assertTrue(math.isnan(mt.get()))  # all values in the tracker are NaN
 
+    if isinstance(univariate.RollingMeanTracker, tracker):
+      self.assertEqual(tracker._mean, 0)
+
   @parameterized.expand([univariate.RollingMeanTracker])
   def test_mean_with_float64_max(self, tracker):
     float64_max = 1.79769313486231570814527423731704356798070e+308
@@ -115,6 +118,10 @@ class StdevTest(unittest.TestCase):
     mt.push(float('nan'))
     print(mt.get())
     self.assertTrue(math.isnan(mt.get()))
+
+    if isinstance(univariate.RollingStdevTracker, tracker):
+      self.assertEqual(tracker._m2, 0)
+      self.assertEqual(tracker._mean, 0)
 
 
 class MedianTest(unittest.TestCase):
