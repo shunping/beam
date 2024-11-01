@@ -41,18 +41,20 @@ class SimpleMeanTracker(BatchTracker):
   def get(self):
     # TODO: check if we should return 0 or NaN.
     if len(self._queue) == 0:
-      return 0
+      return float('NaN')
     return np.nanmean(self._queue)
+
+
+class SimpleStdevTracker(BatchTracker):
+  def get(self):
+    # We do not use nanstd, since nanstd([]) gives 0, which is incorrect.
+    # Use nanvar instead.
+    return math.sqrt(np.nanvar(self._queue, ddof=1))
 
 
 class SimpleMedianTracker(BatchTracker):
   def get(self):
     return np.nanmedian(self._queue)
-
-
-class SimpleStdevTracker(BatchTracker):
-  def get(self):
-    return np.nanstd(self._queue, ddof=1)
 
 
 class SimpleMADTracker(BatchTracker):
@@ -87,7 +89,7 @@ class SimpleQuantile(BatchTracker):
 class RollingTracker(BaseTracker):
   def __init__(self, window_size):
     self._window_size = window_size
-    self._n = 0
+    self._len = 0
     self._queue = deque(maxlen=window_size + 1)
 
   def push(self, x):
@@ -98,24 +100,34 @@ class RollingTracker(BaseTracker):
 
 
 class RollingMeanTracker(RollingTracker):
-  # https://en.wikipedia.org/wiki/Moving_average
+  # This is an modified version of https://en.wikipedia.org/wiki/Moving_average,
+  # that takes care of NaN within the window.
+
   def __init__(self, window_size):
     super().__init__(window_size)
     self._mean = 0
+    self._n = 0
 
   def push(self, x):
-    if math.isnan(x):
-      return
-
-    self._n += 1
     super().push(x)
-    if self._n <= self._window_size:
-      delta = x - self._mean
-      self._mean += delta / self._n
+
+    if not math.isnan(x):
+      self._n += 1
+      delta1 = x - self._mean
     else:
-      old_x = super().pop()
-      delta = x - old_x
-      self._mean += delta / self._window_size
+      delta1 = 0
+
+    if (len(self._queue) > self._window_size and
+        not math.isnan(old_x := super().pop())):
+      self._n -= 1
+      delta2 = self._mean - old_x
+    else:
+      delta2 = 0
+
+    if self._n > 0:
+      self._mean += (delta1 + delta2) / self._n
+    else:
+      self._mean = 0
 
   def get(self):
     if self._n < 1:
@@ -134,12 +146,12 @@ class RollingStdevTracker(RollingTracker):
     if math.isnan(x):
       return
 
-    self._n += 1
+    # self._n += 1
     super().push(x)
-    if self._n <= self._window_size:
+    if len(self._queue) <= self._window_size:
       # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford%27s_online_algorithm
       delta = x - self._mean
-      self._mean += delta / self._n
+      self._mean += delta / len(self._queue)
       delta2 = x - self._mean
       self._m2 += delta * delta2
     else:
@@ -152,7 +164,7 @@ class RollingStdevTracker(RollingTracker):
       self._m2 += delta * delta2 + delta * delta3
 
   def get(self):
-    if self._n < 2:
+    if len(self._queue) < 2:
       return float("nan")  # keep it consistent with numpy
-    dof = min(self._n, self._window_size) - 1
+    dof = min(len(self._queue), self._window_size) - 1
     return math.sqrt(self._m2 / dof)
