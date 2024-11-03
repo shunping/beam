@@ -67,20 +67,19 @@ def run():
         anomaly.AnomalyDetector(
             algorithm="SAD",
             id="SAD_2",
-            window_size=50,
-            sub_stat="median",
+            algorithm_kwargs={"window_size": 50, "sub_stat": "median"},
             features=["feat_2"],
             target="label"))
     detectors.append(
         anomaly.AnomalyDetector(
             algorithm="MAD",
-            window_size=50,
+            algorithm_kwargs={"window_size": 50},
             features=["feat_1"],
             target="label"))
     detectors.append(
         anomaly.AnomalyDetector(
             algorithm="MAD",
-            window_size=50,
+            algorithm_kwargs={"window_size": 50},
             features=["feat_2"],
             target="label"))
     detectors.append(

@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+import dataclasses
+import logging
 from typing import Optional
 from typing import List
 import uuid
@@ -26,59 +28,53 @@ from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
+@dataclasses.dataclass(frozen=True)
 class AnomalyDetector:
-  def __init__(
-      self,
-      algorithm: str,
-      id: Optional[str] = None,
-      features: Optional[List[str]] = None,
-      target: Optional[str] = None,
-      threshold_func: Optional[BaseThresholdFunc] = None,
-      *args,
-      **kwargs) -> None:
-    algorithm = algorithm.lower()
-    if algorithm in KNOWN_ALGORITHMS:
-      detector = KNOWN_ALGORITHMS[algorithm]
-      if detector is not None:
-        self._underlying = detector(*args, **kwargs)
-    else:
-      raise NotImplementedError(f"algorithm '{algorithm}' not found")
+  algorithm: str
+  algorithm_kwargs: Optional[dict] = None
+  id: str = ""
+  features: Optional[List[str]] = None
+  target: Optional[str] = None
+  threshold_func: Optional[BaseThresholdFunc] = None
 
-    self._id = id if id else f"{algorithm}_{uuid.uuid4().hex[:6]}"
-    self._features = features
-    self._target = target
-    self._threshold_func = threshold_func
+  def __post_init__(self):
+    canonical_alg = self.algorithm.lower()
+    if canonical_alg not in KNOWN_ALGORITHMS:
+      raise NotImplementedError(f"algorithm '{self.algorithm}' not found")
 
-  @property
-  def label(self):
-    return self._id
-
-  def __repr__(self):
-    return self.label
-
-  def score_and_learn(self, x, y, unused_key):
-    y_pred = self._underlying.score_one(x)
-    self._underlying.learn_one(x)
-    return y_pred
+    if not self.id:
+      super().__setattr__('id', f"{self.algorithm}_{uuid.uuid4().hex[:6]}")
 
 
+@dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetector(AnomalyDetector):
-  def __init__(
-      self,
-      n: int = 10,
-      label: Optional[str] = None,
-      aggregation_strategy: Optional[BaseAggregation] = AverageScore(),
-      **kwargs):
-    weak_learner_alg = kwargs["algorithm"]
-    kwargs["algorithm"] = "ensemble"
-    super().__init__(label=label, **kwargs)
+  n: int = 10
+  aggregation_strategy: Optional[BaseAggregation] = AverageScore()
+  weak_learners: Optional[List[AnomalyDetector]] = None
 
-    kwargs["algorithm"] = weak_learner_alg
-    self._weak_learners = []
-    for _ in range(n):
-      self._weak_learners.append(AnomalyDetector(**kwargs))
+  def __post_init__(self):
+    field_names = tuple(f.name for f in dataclasses.fields(super()))
+    kwargs = {field: getattr(self, field) for field in field_names}
 
-    self._aggregation_strategy = aggregation_strategy
+    # set a field (weak_learners) in a frozen dataclass
+    if not self.weak_learners:
+      super().__setattr__('weak_learners', [])
+      for _ in range(self.n):
+        self.weak_learners.append(AnomalyDetector(**kwargs))  # type: ignore
+    else:
+      logging.warning("setting weak_learners will override all other arguments "
+                      "except aggregation_strategy (if set).")
+      if self.n != len(self.weak_learners):
+        logging.warning("parameter n will be overwritten with the number of "
+                        "weak learners provided to the instantiation.")
+        super().__setattr__('n', len(self.weak_learners))
 
-  def score_and_learn(self, x, y, unused_key):
-    raise NotImplementedError()
+
+
+
+
+# a = EnsembleAnomalyDetector("loda", algorithm_kwargs = {"window_size": 5})
+# print(a)
+
+# b = EnsembleAnomalyDetector("abc", weak_learners=[AnomalyDetector("sad"), AnomalyDetector("mad")])
+# print(b)

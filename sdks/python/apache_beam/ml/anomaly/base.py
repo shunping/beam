@@ -32,7 +32,7 @@ EPSILON = 1e-12
 
 @dataclass(frozen=True)
 class AnomalyDecision():
-  model: str = ""
+  model: Optional[str] = ""
   score: float = float('NaN')
   auc: Optional[float] = None
   prediction: Optional[int] = None

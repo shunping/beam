@@ -27,13 +27,13 @@ import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
-from apache_beam.runners.common import DoFnSignature
 
 from apache_beam.ml.anomaly.base import AnomalyDecision
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import BaseAggregation
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
+from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 KeyT = TypeVar('KeyT')
 TempKeyT = TypeVar('TempKeyT')
@@ -42,8 +42,20 @@ TempKeyT = TypeVar('TempKeyT')
 class _ScoreAndLearn(beam.DoFn):
   DETECTOR_STATE_INDEX = ReadModifyWriteStateSpec('saved_detector', DillCoder())
 
-  def __init__(self, detector):
-    self.detector = detector
+  def __init__(self, detector: AnomalyDetector):
+    self._detector = detector
+    canonical_alg = self._detector.algorithm.lower()
+    if canonical_alg in KNOWN_ALGORITHMS:
+      model_class = KNOWN_ALGORITHMS[canonical_alg]
+      kwargs = self._detector.algorithm_kwargs if self._detector.algorithm_kwargs is not None else {}
+      self._underlying = model_class(**kwargs)  # type: ignore
+    else:
+      raise NotImplementedError(f"algorithm '{detector.algorithm}' not found")
+
+  def score_and_learn(self, x, y, unused_key):
+    y_pred = self._underlying.score_one(x)
+    self._underlying.learn_one(x)
+    return y_pred
 
   def process(
       self,
@@ -52,18 +64,18 @@ class _ScoreAndLearn(beam.DoFn):
       **kwargs) -> Iterable[Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]]:
 
     k1, (k2, data) = element
-    detector = detector_state.read()  # type: ignore
-    if detector is None:
-      detector = self.detector
+    model = detector_state.read()  # type: ignore
+    if model is None:
+      model = self._underlying
 
     # feature selection
-    if detector._features is not None:
-      x = beam.Row(**{f: getattr(data, f) for f in detector._features})
+    if self._detector.features is not None:
+      x = beam.Row(**{f: getattr(data, f) for f in self._detector.features})
     else:
       x = data
 
-    if detector._target is not None:
-      y = getattr(data, detector._target)
+    if self._detector.target is not None:
+      y = getattr(data, self._detector.target)
     else:
       y = None
 
@@ -71,10 +83,10 @@ class _ScoreAndLearn(beam.DoFn):
                AnomalyPrediction(
                    data=data,
                    decision=AnomalyDecision(
-                       model=detector.label,
-                       score=detector.score_and_learn(x, y, k2))))
+                       model=self._detector.id,
+                       score=self.score_and_learn(x, y, k2))))
 
-    detector_state.write(detector)  # type: ignore
+    detector_state.write(self._underlying)  # type: ignore
 
 
 class _EvaluateWithAUC(beam.DoFn):
@@ -138,13 +150,13 @@ class _RunDetectors(
       if isinstance(detector, EnsembleAnomalyDetector):
         score_result = (
             input | _RunDetectors(
-                detector.label,
-                detector._weak_learners,
-                detector._aggregation_strategy)
+                detector.id,
+                detector.weak_learners,  # type: ignore
+                detector.aggregation_strategy)
             | f"Reset model label for ensemble ({detector})" >> beam.MapTuple(
                 lambda k,
                 v,
-                label=detector.label: (
+                label=detector.id: (
                     k,
                     (
                         v[0],
@@ -159,17 +171,11 @@ class _RunDetectors(
                 _ScoreAndLearn(detector)).with_output_types(
                     Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
 
-      if detector._threshold_func:
-        if DoFnSignature(detector._threshold_func).is_stateful_dofn():
-          model_results.append(
-              score_result
-              | f"Run threshold function ({detector})" >> beam.ParDo(
-                  detector._threshold_func))
-        else:
-          model_results.append(
-              score_result
-              | f"Run threshold function ({detector})" >> beam.ParDo(
-                  detector._threshold_func))
+      if detector.threshold_func:
+        model_results.append(
+            score_result
+            | f"Run threshold function ({detector})" >> beam.ParDo(
+                detector.threshold_func))
       else:
         model_results.append(score_result)
 

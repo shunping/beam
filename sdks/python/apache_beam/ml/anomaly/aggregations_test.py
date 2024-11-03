@@ -22,6 +22,7 @@ from apache_beam.ml.anomaly.base import AnomalyDecision
 from apache_beam.ml.anomaly import aggregations
 
 
+
 class MajorityVoteTest(unittest.TestCase):
 
   def test_default(self):
