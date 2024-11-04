@@ -17,6 +17,7 @@
 
 from typing import Any
 from typing import Iterable
+from typing import Optional
 from typing import Tuple
 from typing import Union
 
@@ -29,6 +30,7 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class FixedThreshold(BaseThresholdFunc):
+
   def __init__(self, threshold: Union[int, float]):
     self._threshold = threshold
 
@@ -36,9 +38,8 @@ class FixedThreshold(BaseThresholdFunc):
   def threshold(self):
     return self._threshold
 
-  def process(
-      self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
-      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+  def process(self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
     k1, (k2, prediction) = element
     yield k1, (k2, self._update_prediction(prediction))
 
@@ -46,24 +47,32 @@ class FixedThreshold(BaseThresholdFunc):
 class QuantileThreshold(BaseThresholdFunc):
   TRACKER_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self, quantile: float):
+  def __init__(self,
+               quantile: float,
+               quantile_tracker_class: Optional[type[
+                   univariate.BatchQuantileTracker]] = None,
+               quantile_tracker_kwargs: Optional[dict[str, Any]] = None):
     self._quantile = quantile
-    self._tracker = None
+    if quantile_tracker_class is None:
+      self._tracker_class = univariate.SimpleQuantile
+      self._tracker_kwargs = {"window_size": 100}
+    else:
+      self._tracker_class = quantile_tracker_class
+      self._tracker_kwargs = quantile_tracker_kwargs if quantile_tracker_kwargs is not None else {}
 
   @property
   def threshold(self) -> float:
-    return self._tracker.get()  # type: ignore
+    return self._tracker.get(self._quantile)  # type: ignore
 
-  def process(
-      self,
-      element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
-      tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+  def process(self,
+              element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+              tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
     k1, (k2, prediction) = element
 
     self._tracker = tracker_state.read()  # type: ignore
     if self._tracker is None:
-      self._tracker = univariate.SimpleQuantile(100, self._quantile)
+      self._tracker = self._tracker_class(**self._tracker_kwargs)
     self._tracker.push(prediction.decision.score)
 
     yield k1, (k2, self._update_prediction(prediction))

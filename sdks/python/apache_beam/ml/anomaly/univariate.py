@@ -75,15 +75,15 @@ class SimpleHistogram(BatchTracker):
     return np.histogram(self._queue, bins=self._n_bins, density=False)
 
 
-class SimpleQuantile(BatchTracker):
-  def __init__(self, window_size, quantile):
+class BatchQuantileTracker(BatchTracker):
+  def get(self, quantile):
+    raise NotImplementedError
+
+
+class SimpleQuantile(BatchQuantileTracker):
+  def get(self, quantile):
     assert 0 < quantile < 1, "quantile argument should be between 0 and 1"
-
-    super().__init__(window_size)
-    self._quantile = quantile
-
-  def get(self):
-    return np.nanquantile(self._queue, self._quantile)
+    return np.nanquantile(self._queue, quantile)
 
 
 class RollingTracker(BaseTracker):
