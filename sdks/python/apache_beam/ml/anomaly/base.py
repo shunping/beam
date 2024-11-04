@@ -33,7 +33,7 @@ EPSILON = 1e-12
 @dataclass(frozen=True)
 class AnomalyDecision():
   model: Optional[str] = ""
-  score: float = float('NaN')
+  score: Optional[float] = None
   auc: Optional[float] = None
   prediction: Optional[int] = None
   threshold: Optional[float] = None
@@ -63,7 +63,10 @@ class BaseThresholdFunc(beam.DoFn):
 
   def _update_prediction(
       self, prediction: AnomalyPrediction) -> AnomalyPrediction:
-    pred: int = 0 if prediction.decision.score < self.threshold else 1
+    if prediction.decision.score is None:
+      pred = 0
+    else:
+      pred: int = 0 if prediction.decision.score < self.threshold else 1
     return dataclasses.replace(
         prediction,
         decision=dataclasses.replace(
