@@ -53,7 +53,9 @@ class EnsembleAnomalyDetector(AnomalyDetector):
   weak_learners: Optional[List[AnomalyDetector]] = None
 
   def __post_init__(self):
-    field_names = tuple(f.name for f in dataclasses.fields(super()))
+    # propagate fields to base class except for id
+    field_names = tuple(
+        f.name for f in dataclasses.fields(super()) if f.name != "id")
     kwargs = {field: getattr(self, field) for field in field_names}
 
     # set a field (weak_learners) in a frozen dataclass
@@ -68,13 +70,3 @@ class EnsembleAnomalyDetector(AnomalyDetector):
         logging.warning("parameter n will be overwritten with the number of "
                         "weak learners provided to the instantiation.")
         super().__setattr__('n', len(self.weak_learners))
-
-
-
-
-
-# a = EnsembleAnomalyDetector("loda", algorithm_kwargs = {"window_size": 5})
-# print(a)
-
-# b = EnsembleAnomalyDetector("abc", weak_learners=[AnomalyDetector("sad"), AnomalyDetector("mad")])
-# print(b)

@@ -6,6 +6,7 @@ from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
 
 
@@ -39,14 +40,21 @@ def run(argv=None, save_main_session=True):
           algorithm="SAD",
           features=["x1"],
           threshold_func=FixedThreshold(3),
-          id="sad_x1"))
+          #id="sad_x1"
+          ))
   detectors.append(
       AnomalyDetector(
           algorithm="SAD",
           features=["x2"],
           threshold_func=FixedThreshold(2),
           id="sad_x2"))
-
+  detectors.append(
+      EnsembleAnomalyDetector(
+          n=3,
+          algorithm="loda",
+          id="ensemble-loda",
+          features=["x1", "x2"],
+      ))
   # The pipeline will be run on exiting the with block.
   with beam.Pipeline(options=pipeline_options) as p:
     _ = (

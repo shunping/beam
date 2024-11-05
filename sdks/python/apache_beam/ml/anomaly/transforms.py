@@ -160,7 +160,9 @@ class _RunDetectors(
             .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
       else:
         score_result = (
-            input | f"Score and learn ({detector})" >> beam.ParDo(
+            input
+            | f"Reshuffle ({detector})" >> beam.Reshuffle()
+            | f"Score and learn ({detector})" >> beam.ParDo(
                 _ScoreAndLearn(detector)).with_output_types(
                     Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
 
