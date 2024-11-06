@@ -16,14 +16,16 @@
 #
 
 """Base classes for anomaly detection"""
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import dataclasses
 from dataclasses import dataclass
 from typing import Callable
-from typing import Optional
 from typing import Generic
 from typing import Iterable
+from typing import List
+from typing import Optional
 from typing import TypeVar
 from typing import Union
 
@@ -42,8 +44,8 @@ class AnomalyPrediction(Generic[ScoreT, LabelT]):
   score: Optional[ScoreT] = None
   label: Optional[LabelT] = None
   threshold: Optional[ScoreT] = None
-  auc: Optional[float] = None
   info: str = ''
+  agg_history: Optional[List[AnomalyPrediction]] = None
 
 
 @dataclass(frozen=True)

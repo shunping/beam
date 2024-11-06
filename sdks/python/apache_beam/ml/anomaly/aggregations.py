@@ -27,41 +27,43 @@ from apache_beam.ml.anomaly.base import BaseAggregationFunc
 
 
 class LabelAggregation(BaseAggregationFunc[int]):
+
   def __call__(self,
-               decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+               predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     labels = list(
-        itertools.filterfalse(lambda prediction: prediction is None,
-                              map(lambda decision: decision.label, decisions)))
+        itertools.filterfalse(
+            lambda label: label is None,
+            map(lambda prediction: prediction.label, predictions)))
 
     if len(labels) == 0:
       return AnomalyPrediction(model_id=self._model_override)
 
-    prediction = self._agg_func(labels, **self._kwargs)  # type: ignore
+    label = self._agg_func(labels)  # type: ignore
 
-    info = ('[' + ('; '.join(map(str, decisions))) +
-            ']') if self._include_history else ''
+    history = list(predictions) if self._include_history else None
 
     return AnomalyPrediction(
-        model_id=self._model_override, label=prediction, info=info)
+        model_id=self._model_override, label=label, agg_history=history)
 
 
 class ScoreAggregation(BaseAggregationFunc[float]):
+
   def __call__(self,
-               decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+               predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     scores = list(
-        itertools.filterfalse(lambda score: score is None or math.isnan(score),
-                              map(lambda decision: decision.score, decisions)))
+        itertools.filterfalse(
+            lambda score: score is None or math.isnan(score),
+            map(lambda prediction: prediction.score, predictions)))
 
     if len(scores) == 0:
       return AnomalyPrediction(model_id=self._model_override)
 
-    score = self._agg_func(scores, **self._kwargs)  # type: ignore
+    score = self._agg_func(scores)  # type: ignore
 
-    info = ('[' + ('; '.join(map(str, decisions))) +
-            ']') if self._include_history else ''
+    history = list(predictions) if self._include_history else None
 
     return AnomalyPrediction(
-        model_id=self._model_override, score=score, info=info)
+        model_id=self._model_override, score=score, agg_history=history)
 
 
 def MajorityVote(normal_label=0,

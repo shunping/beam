@@ -20,9 +20,9 @@ import unittest
 
 import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AnyVote
+from apache_beam.ml.anomaly.aggregations import LabelAggregation
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.base import LabelAggregation
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.transforms import AnomalyDetection

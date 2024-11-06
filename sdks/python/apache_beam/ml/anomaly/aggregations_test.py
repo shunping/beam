@@ -18,11 +18,10 @@
 import logging
 import unittest
 
+from apache_beam.ml.anomaly.aggregations import LabelAggregation
+from apache_beam.ml.anomaly.aggregations import ScoreAggregation
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.base import ScoreAggregation
-from apache_beam.ml.anomaly.base import LabelAggregation
 from apache_beam.ml.anomaly import aggregations
-
 
 
 class MajorityVoteTest(unittest.TestCase):

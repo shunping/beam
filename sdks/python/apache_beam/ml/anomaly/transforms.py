@@ -89,43 +89,6 @@ class _ScoreAndLearn(beam.DoFn):
     detector_state.write(self._underlying)  # type: ignore
 
 
-class _EvaluateWithAUC(beam.DoFn):
-  TRACKER_STATE_INDEX = ReadModifyWriteStateSpec('saved_trackers', DillCoder())
-
-  def __init__(self, window_size, target):
-    self._window_size = window_size
-    self._target = target
-
-  def process(self,
-              element: Tuple[KeyT, AnomalyResult],
-              tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[KeyT, AnomalyResult]]:
-
-    key, prediction = element
-    data = prediction.example
-    decision = prediction.prediction
-
-    if not self._target:
-      auc = float("nan")
-    else:
-      target = getattr(data, self._target)
-
-      trackers = tracker_state.read()  # type: ignore
-      if trackers is None:
-        trackers = {}
-
-      if decision.model_id not in trackers:
-        from river.metrics import RollingROCAUC
-        trackers[decision.model_id] = RollingROCAUC(window_size=self._window_size)
-      trackers[decision.model_id].update(target, decision.score)
-
-      auc = trackers[decision.model_id].get()
-
-    yield key, AnomalyResult(
-        example=data, prediction=dataclasses.replace(decision, auc=auc))
-    tracker_state.write(trackers)  # type: ignore
-
-
 class _RunDetectors(
     beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]],
                     beam.PCollection[Tuple[KeyT, Tuple[TempKeyT,
@@ -204,7 +167,7 @@ class AnomalyDetection(
     self._detectors = detectors
     self._with_auc = with_auc
     self._is_nested = is_nested
-    self._aggregation_func = aggregation_func
+    self._aggregation_strategy = aggregation_func
 
   def maybe_add_key(
       self, element: Tuple[KeyT,
@@ -222,7 +185,7 @@ class AnomalyDetection(
     ret = (
         input
         | "Add temp key" >> beam.Map(self.maybe_add_key)
-        | _RunDetectors("root", self._detectors, self._aggregation_func))
+        | _RunDetectors("root", self._detectors, self._aggregation_strategy))
 
     remove_temp_key_func: Callable[
         [KeyT, Tuple[TempKeyT, AnomalyResult]],
