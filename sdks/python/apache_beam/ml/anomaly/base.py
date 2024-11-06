@@ -20,12 +20,9 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from dataclasses import dataclass
-import itertools
-import math
 from typing import Callable
 from typing import Optional
 from typing import Generic
-from typing import Protocol
 from typing import Iterable
 from typing import TypeVar
 from typing import Union
@@ -37,6 +34,7 @@ EPSILON = 1e-12
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')
 LabelT = TypeVar('LabelT')
+AggregateT = TypeVar('AggregateT')
 
 @dataclass(frozen=True)
 class AnomalyPrediction(Generic[ScoreT, LabelT]):
@@ -81,35 +79,16 @@ class BaseThresholdFunc(beam.DoFn):
             result.prediction, label=label, threshold=self.threshold))
 
 
-class BaseAggregation(Protocol):
-  def __call__(self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
-    ...
-
-class ScoreAggregation(BaseAggregation):
-
+class BaseAggregationFunc(Generic[AggregateT]):
   def __init__(self,
-               aggregate_func: Callable[[Iterable[float]], float],
-               include_history=False,
-               model_override=""):
-    self.aggregate_scores = aggregate_func
+              agg_func: Callable[[Iterable[AggregateT]], AggregateT],
+              include_history=False,
+              model_override="",
+              **kwargs):
+    self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = model_override
+    self._kwargs = kwargs
 
-  # def aggregate_scores(self, predictions: Iterable[float]):
-  #   raise NotImplementedError
-
-  def __call__(self, decisions: Iterable[AnomalyPrediction[float, LabelT]]) -> AnomalyPrediction[float, LabelT]:
-    scores = list(itertools.filterfalse(
-        lambda score: score is None or math.isnan(score),
-        map(lambda decision: decision.score, decisions)))
-
-    if len(scores) == 0:
-      return AnomalyPrediction(model_id=self._model_override)
-
-    score = self.aggregate_scores(scores)  # type: ignore
-
-    info = ('[' + ('; '.join(map(str, decisions))) +
-            ']') if self._include_history else ''
-
-    return AnomalyPrediction(
-        model_id=self._model_override, score=score, info=info)
+  def __call__(self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+    ...

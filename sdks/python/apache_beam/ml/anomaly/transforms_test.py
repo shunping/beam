@@ -22,6 +22,7 @@ import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import LabelAggregation
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
@@ -168,7 +169,7 @@ class TestAnomalyDetection(unittest.TestCase):
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors, aggregation_strategy=AnyVote()))
+          | AnomalyDetection(detectors, aggregation_func=LabelAggregation(AnyVote())))
 
       assert_that(
           result,

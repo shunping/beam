@@ -30,7 +30,7 @@ from apache_beam.utils import timestamp
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import BaseAggregation
+from apache_beam.ml.anomaly.base import BaseAggregationFunc
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
@@ -135,7 +135,7 @@ class _RunDetectors(
   def __init__(self,
                model_id,
                detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[BaseAggregation] = None):
+               aggregation_strategy: Optional[BaseAggregationFunc] = None):
     self._label = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
@@ -198,13 +198,13 @@ class AnomalyDetection(
 
   def __init__(self,
                detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[BaseAggregation] = None,
+               aggregation_func: Optional[BaseAggregationFunc] = None,
                is_nested: bool = False,
                with_auc: bool = False) -> None:
     self._detectors = detectors
     self._with_auc = with_auc
     self._is_nested = is_nested
-    self._aggregation_strategy = aggregation_strategy
+    self._aggregation_func = aggregation_func
 
   def maybe_add_key(
       self, element: Tuple[KeyT,
@@ -222,7 +222,7 @@ class AnomalyDetection(
     ret = (
         input
         | "Add temp key" >> beam.Map(self.maybe_add_key)
-        | _RunDetectors("root", self._detectors, self._aggregation_strategy))
+        | _RunDetectors("root", self._detectors, self._aggregation_func))
 
     remove_temp_key_func: Callable[
         [KeyT, Tuple[TempKeyT, AnomalyResult]],

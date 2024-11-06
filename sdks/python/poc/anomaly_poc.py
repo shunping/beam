@@ -92,14 +92,14 @@ def run():
             # id="ensemble-loda",
             features=["feat_1", "feat_2"],
             target="label",
-            threshold_func=anomaly.QuantileThreshold(0.95),
+            # threshold_func=anomaly.QuantileThreshold(0.95),
         ))
     results = (
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
             with_auc=True,
-            aggregation_strategy=anomaly.AnyVote(),
+            aggregation_func=anomaly.LabelAggregation(anomaly.AnyVote()),
         ))
 
     _ = results | beam.Map(debug_print)

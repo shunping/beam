@@ -20,36 +20,23 @@ import itertools
 import math
 import statistics
 from typing import Iterable
+from typing import Callable
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.base import BaseAggregation
+from apache_beam.ml.anomaly.base import BaseAggregationFunc
 
 
-class PredictionAggregation(BaseAggregation):
+class LabelAggregation(BaseAggregationFunc[int]):
+  def __call__(self,
+               decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+    labels = list(
+        itertools.filterfalse(lambda prediction: prediction is None,
+                              map(lambda decision: decision.label, decisions)))
 
-  def __init__(self,
-               outlier_label=1,
-               normal_label=0,
-               include_history=False,
-               model_override=""):
-    self._outlier_label = outlier_label
-    self._normal_label = normal_label
-    self._include_history = include_history
-    self._model_override = model_override
-
-  def aggregate_predictions(self, predictions: Iterable[int]):
-    raise NotImplementedError
-
-  def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
-    predictions = list(
-        itertools.filterfalse(
-            lambda prediction: prediction is None,
-            map(lambda decision: decision.label, decisions)))
-
-    if len(predictions) == 0:
+    if len(labels) == 0:
       return AnomalyPrediction(model_id=self._model_override)
 
-    prediction = self.aggregate_predictions(predictions)  # type: ignore
+    prediction = self._agg_func(labels, **self._kwargs)  # type: ignore
 
     info = ('[' + ('; '.join(map(str, decisions))) +
             ']') if self._include_history else ''
@@ -58,69 +45,61 @@ class PredictionAggregation(BaseAggregation):
         model_id=self._model_override, label=prediction, info=info)
 
 
-class MajorityVote(PredictionAggregation):
+class ScoreAggregation(BaseAggregationFunc[float]):
+  def __call__(self,
+               decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+    scores = list(
+        itertools.filterfalse(lambda score: score is None or math.isnan(score),
+                              map(lambda decision: decision.score, decisions)))
 
-  def __init__(self, tie_breaker=0, **kwargs):
-    self._tie_breaker = tie_breaker
-    super().__init__(**kwargs)
+    if len(scores) == 0:
+      return AnomalyPrediction(model_id=self._model_override)
 
-  def aggregate_predictions(self, predictions: Iterable[int]) -> int:
+    score = self._agg_func(scores, **self._kwargs)  # type: ignore
+
+    info = ('[' + ('; '.join(map(str, decisions))) +
+            ']') if self._include_history else ''
+
+    return AnomalyPrediction(
+        model_id=self._model_override, score=score, info=info)
+
+
+def MajorityVote(normal_label=0,
+                 outlier_label=1,
+                 tie_breaker=0) -> Callable[[Iterable[int]], int]:
+
+  def inner(predictions: Iterable[int]) -> int:
     counters = collections.Counter(predictions)
-
-    if counters[self._normal_label] < counters[self._outlier_label]:
-      vote = self._outlier_label
-    elif counters[self._normal_label] > counters[self._outlier_label]:
-      vote = self._normal_label
+    if counters[normal_label] < counters[outlier_label]:
+      vote = outlier_label
+    elif counters[normal_label] > counters[outlier_label]:
+      vote = normal_label
     else:
-      vote = self._tie_breaker
-
+      vote = tie_breaker
     return vote
 
+  return inner
+
+
 # And scheme
-class AllVote(PredictionAggregation):
-  def aggregate_predictions(self, predictions: Iterable[int]) -> int:
-    return self._outlier_label if all(map(lambda p: p == self._outlier_label,
-                                    predictions)) else self._normal_label
+def AllVote(normal_label=0, outlier_label=1) -> Callable[[Iterable[int]], int]:
+
+  def inner(predictions: Iterable[int]) -> int:
+    return outlier_label if all(map(lambda p: p == outlier_label,
+                                    predictions)) else normal_label
+
+  return inner
 
 
 # Or scheme
-class AnyVote(PredictionAggregation):
-  def aggregate_predictions(self, predictions: Iterable[int]) -> int:
-    return self._outlier_label if any(map(lambda p: p == self._outlier_label,
-                                predictions)) else self._normal_label
+def AnyVote(normal_label=0, outlier_label=1) -> Callable[[Iterable[int]], int]:
 
+  def inner(predictions: Iterable[int]) -> int:
+    return outlier_label if any(map(lambda p: p == outlier_label,
+                                    predictions)) else normal_label
 
-# class ScoreAggregation(BaseAggregation):
+  return inner
 
-#   def __init__(self,
-#                include_history=False,
-#                model_override=""):
-#     self._include_history = include_history
-#     self._model_override = model_override
-
-#   def aggregate_scores(self, predictions: Iterable[float]):
-#     raise NotImplementedError
-
-#   def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
-#     scores = list(itertools.filterfalse(
-#         lambda score: math.isnan(score),
-#         map(lambda decision: decision.score, decisions)))
-
-#     if len(scores) == 0:
-#       return AnomalyPrediction(model_id=self._model_override)
-
-#     score = self.aggregate_scores(scores)  # type: ignore
-
-#     info = ('[' + ('; '.join(map(str, decisions))) +
-#             ']') if self._include_history else ''
-
-#     return AnomalyPrediction(
-#         model_id=self._model_override, score=score, info=info)
-
-
-# class AverageScore(ScoreAggregation):
-#   def aggregate_scores(self, scores: Iterable[float]) -> float:
-#     return statistics.mean(scores)
 
 def AverageScore(scores: Iterable[float]) -> float:
   return statistics.mean(scores)

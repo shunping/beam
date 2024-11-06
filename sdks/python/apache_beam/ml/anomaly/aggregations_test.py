@@ -20,6 +20,7 @@ import unittest
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import ScoreAggregation
+from apache_beam.ml.anomaly.base import LabelAggregation
 from apache_beam.ml.anomaly import aggregations
 
 
@@ -29,7 +30,7 @@ class MajorityVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    self._vote = aggregations.MajorityVote()
+    self._vote = LabelAggregation(aggregations.MajorityVote())
 
     self.assertEqual(self._vote([]), AnomalyPrediction())
 
@@ -47,7 +48,7 @@ class MajorityVoteTest(unittest.TestCase):
   def test_tie_breaker(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    self._vote = aggregations.MajorityVote(tie_breaker=1)
+    self._vote = LabelAggregation(aggregations.MajorityVote(tie_breaker=1))
 
     self.assertEqual(self._vote([outlier, normal]), outlier)
 
@@ -57,7 +58,7 @@ class AllVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    self._vote = aggregations.AllVote()
+    self._vote = LabelAggregation(aggregations.AllVote())
 
     self.assertEqual(self._vote([]), AnomalyPrediction())
 
@@ -77,7 +78,7 @@ class AnyVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    vote = aggregations.AnyVote()
+    vote = LabelAggregation(aggregations.AnyVote())
 
     self.assertEqual(vote([]), AnomalyPrediction())
 
