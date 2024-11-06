@@ -21,19 +21,19 @@ from apache_beam.ml.anomaly.base import AnomalyModel
 from apache_beam.ml.anomaly.base import EPSILON
 
 
-class MedianAbsoluteDeviation(AnomalyModel):
+class MedianAbsoluteDeviation(AnomalyModel[beam.Row, float]):
   def __init__(self, window_size=10, scale_factor=0.67449):
     self._median_tracker = univariate.SimpleMedianTracker(window_size)
     self._mad_tracker = univariate.SimpleMADTracker(window_size)
     self._scale_factor = scale_factor
 
-  def learn_one(self, x: beam.Row):
+  def learn_one(self, x: beam.Row) -> None:
     assert len(x.__dict__) == 1, "MAD requires univariate input"
     v = next(iter(x))
     self._median_tracker.push(v)
     self._mad_tracker.push(v)
 
-  def score_one(self, x: beam.Row):
+  def score_one(self, x: beam.Row) -> float:
     assert len(x.__dict__) == 1, "MAD requires univariate input"
     v = next(iter(x))
     median = self._median_tracker.get()

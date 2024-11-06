@@ -22,7 +22,7 @@ from apache_beam.ml.anomaly.base import AnomalyModel
 from apache_beam.ml.anomaly import univariate
 
 
-class LodaWeakLearner(AnomalyModel):
+class LodaWeakLearner(AnomalyModel[beam.Row, float]):
 
   def __init__(self,
                n_init=256,
@@ -37,7 +37,7 @@ class LodaWeakLearner(AnomalyModel):
     self._features = None
     self._projection = None
 
-  def learn_one(self, x: beam.Row):
+  def learn_one(self, x: beam.Row) -> None:
     if self._features is None:
       self._features = sorted(x.__dict__.keys())
 
@@ -53,7 +53,7 @@ class LodaWeakLearner(AnomalyModel):
     projected_data = x_np.dot(self._projection)
     self._hist.push(projected_data)
 
-  def score_one(self, x: beam.Row):
+  def score_one(self, x: beam.Row) -> float:
     if len(
         self._hist._queue
     ) < self._n_init or self._features is None or self._projection is None:

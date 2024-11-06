@@ -90,34 +90,37 @@ class AnyVote(PredictionAggregation):
                                 predictions)) else self._normal_label
 
 
-class ScoreAggregation(BaseAggregation):
+# class ScoreAggregation(BaseAggregation):
 
-  def __init__(self,
-               include_history=False,
-               model_override=""):
-    self._include_history = include_history
-    self._model_override = model_override
+#   def __init__(self,
+#                include_history=False,
+#                model_override=""):
+#     self._include_history = include_history
+#     self._model_override = model_override
 
-  def aggregate_scores(self, predictions: Iterable[float]):
-    raise NotImplementedError
+#   def aggregate_scores(self, predictions: Iterable[float]):
+#     raise NotImplementedError
 
-  def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
-    scores = list(itertools.filterfalse(
-        lambda score: math.isnan(score),
-        map(lambda decision: decision.score, decisions)))
+#   def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+#     scores = list(itertools.filterfalse(
+#         lambda score: math.isnan(score),
+#         map(lambda decision: decision.score, decisions)))
 
-    if len(scores) == 0:
-      return AnomalyPrediction(model_id=self._model_override)
+#     if len(scores) == 0:
+#       return AnomalyPrediction(model_id=self._model_override)
 
-    score = self.aggregate_scores(scores)  # type: ignore
+#     score = self.aggregate_scores(scores)  # type: ignore
 
-    info = ('[' + ('; '.join(map(str, decisions))) +
-            ']') if self._include_history else ''
+#     info = ('[' + ('; '.join(map(str, decisions))) +
+#             ']') if self._include_history else ''
 
-    return AnomalyPrediction(
-        model_id=self._model_override, score=score, info=info)
+#     return AnomalyPrediction(
+#         model_id=self._model_override, score=score, info=info)
 
 
-class AverageScore(ScoreAggregation):
-  def aggregate_scores(self, scores: Iterable[float]) -> float:
-    return statistics.mean(scores)
+# class AverageScore(ScoreAggregation):
+#   def aggregate_scores(self, scores: Iterable[float]) -> float:
+#     return statistics.mean(scores)
+
+def AverageScore(scores: Iterable[float]) -> float:
+  return statistics.mean(scores)

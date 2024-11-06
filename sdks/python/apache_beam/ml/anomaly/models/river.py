@@ -21,14 +21,14 @@ import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyModel
 
 
-class RiverAnomalyModel(AnomalyModel):
+class RiverAnomalyModel(AnomalyModel[beam.Row, float]):
   def __init__(self):
     self._river_model = None
 
-  def learn_one(self, x: beam.Row):
+  def learn_one(self, x: beam.Row) -> None:
     self._river_model.learn_one(x.__dict__)  # type: ignore
 
-  def score_one(self, x: beam.Row):
+  def score_one(self, x: beam.Row) -> float:
     return self._river_model.score_one(x.__dict__)  # type: ignore
 
 

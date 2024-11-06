@@ -20,38 +20,47 @@
 from abc import ABC, abstractmethod
 import dataclasses
 from dataclasses import dataclass
+import itertools
+import math
+from typing import Callable
 from typing import Optional
+from typing import Generic
 from typing import Protocol
 from typing import Iterable
+from typing import TypeVar
 from typing import Union
 
 import apache_beam as beam
 
 EPSILON = 1e-12
 
+ExampleT = TypeVar('ExampleT')
+ScoreT = TypeVar('ScoreT')
+LabelT = TypeVar('LabelT')
+
 @dataclass(frozen=True)
-class AnomalyPrediction():
+class AnomalyPrediction(Generic[ScoreT, LabelT]):
   model_id: Optional[str] = ""
-  score: Optional[float] = None
+  score: Optional[ScoreT] = None
+  label: Optional[LabelT] = None
+  threshold: Optional[ScoreT] = None
   auc: Optional[float] = None
-  label: Optional[int] = None
-  threshold: Optional[float] = None
   info: str = ''
 
 
 @dataclass(frozen=True)
-class AnomalyResult():
-  example: beam.Row
-  prediction: AnomalyPrediction
+class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
+  example: ExampleT
+  prediction: AnomalyPrediction[ScoreT, LabelT]
 
 
-class AnomalyModel(ABC):
+class AnomalyModel(ABC, Generic[ExampleT, ScoreT]):
   @abstractmethod
-  def learn_one(self, x: beam.Row) -> None:
+  def learn_one(self, x: ExampleT) -> None:
     ...
 
   @abstractmethod
-  def score_one(self, x: beam.Row) -> float:
+  def score_one(self, x: ExampleT) -> ScoreT:
     ...
 
 
@@ -75,3 +84,32 @@ class BaseThresholdFunc(beam.DoFn):
 class BaseAggregation(Protocol):
   def __call__(self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     ...
+
+class ScoreAggregation(BaseAggregation):
+
+  def __init__(self,
+               aggregate_func: Callable[[Iterable[float]], float],
+               include_history=False,
+               model_override=""):
+    self.aggregate_scores = aggregate_func
+    self._include_history = include_history
+    self._model_override = model_override
+
+  # def aggregate_scores(self, predictions: Iterable[float]):
+  #   raise NotImplementedError
+
+  def __call__(self, decisions: Iterable[AnomalyPrediction[float, LabelT]]) -> AnomalyPrediction[float, LabelT]:
+    scores = list(itertools.filterfalse(
+        lambda score: score is None or math.isnan(score),
+        map(lambda decision: decision.score, decisions)))
+
+    if len(scores) == 0:
+      return AnomalyPrediction(model_id=self._model_override)
+
+    score = self.aggregate_scores(scores)  # type: ignore
+
+    info = ('[' + ('; '.join(map(str, decisions))) +
+            ']') if self._include_history else ''
+
+    return AnomalyPrediction(
+        model_id=self._model_override, score=score, info=info)

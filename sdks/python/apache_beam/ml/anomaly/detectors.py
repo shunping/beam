@@ -23,6 +23,7 @@ import uuid
 
 from apache_beam.ml.anomaly.base import BaseAggregation
 from apache_beam.ml.anomaly.base import BaseThresholdFunc
+from apache_beam.ml.anomaly.base import ScoreAggregation
 from apache_beam.ml.anomaly.aggregations import AverageScore
 
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
@@ -49,7 +50,7 @@ class AnomalyDetector:
 @dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetector(AnomalyDetector):
   n: int = 10
-  aggregation_strategy: Optional[BaseAggregation] = AverageScore()
+  aggregation_strategy: Optional[BaseAggregation] = ScoreAggregation(AverageScore)
   weak_learners: Optional[List[AnomalyDetector]] = None
 
   def __post_init__(self):

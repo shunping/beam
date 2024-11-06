@@ -19,6 +19,7 @@ import logging
 import unittest
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import ScoreAggregation
 from apache_beam.ml.anomaly import aggregations
 
 
@@ -94,7 +95,8 @@ class AnyVoteTest(unittest.TestCase):
 class AverageScoreTest(unittest.TestCase):
 
   def test_default(self):
-    avg = aggregations.AverageScore()
+    #avg = aggregations.AverageScore()
+    avg = ScoreAggregation(aggregations.AverageScore)
 
     self.assertEqual(avg([]), AnomalyPrediction())
 

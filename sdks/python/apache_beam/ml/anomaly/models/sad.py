@@ -23,7 +23,7 @@ from apache_beam.ml.anomaly.base import AnomalyModel
 from apache_beam.ml.anomaly.base import EPSILON
 
 
-class StandardAbsoluteDeviation(AnomalyModel):
+class StandardAbsoluteDeviation(AnomalyModel[beam.Row, float]):
   def __init__(self, sub_stat="mean", window_size=10, sub_stat_tracker=None):
     if sub_stat_tracker is None:
       if sub_stat == 'mean':
@@ -37,13 +37,13 @@ class StandardAbsoluteDeviation(AnomalyModel):
 
     self._stdev_tracker = univariate.SimpleStdevTracker(window_size)
 
-  def learn_one(self, x: beam.Row):
+  def learn_one(self, x: beam.Row) -> None:
     assert len(x.__dict__) == 1, "SAD requires univariate input"
     v = next(iter(x))
     self._stdev_tracker.push(v)
     self._sub_stat_tracker.push(v)
 
-  def score_one(self, x: beam.Row):
+  def score_one(self, x: beam.Row) -> float:
     assert len(x.__dict__) == 1, "SAD requires univariate input"
     v = next(iter(x))
     sub_stat = self._sub_stat_tracker.get()
