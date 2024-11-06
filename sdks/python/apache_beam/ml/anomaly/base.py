@@ -29,24 +29,23 @@ import apache_beam as beam
 
 EPSILON = 1e-12
 
-
 @dataclass(frozen=True)
-class AnomalyDecision():
-  model: Optional[str] = ""
+class AnomalyPrediction():
+  model_id: Optional[str] = ""
   score: Optional[float] = None
   auc: Optional[float] = None
-  prediction: Optional[int] = None
+  label: Optional[int] = None
   threshold: Optional[float] = None
   info: str = ''
 
 
 @dataclass(frozen=True)
-class AnomalyPrediction():
-  data: beam.Row
-  decision: AnomalyDecision
+class AnomalyResult():
+  example: beam.Row
+  prediction: AnomalyPrediction
 
 
-class BaseAnomalyModel(ABC):
+class AnomalyModel(ABC):
   @abstractmethod
   def learn_one(self, x: beam.Row) -> None:
     ...
@@ -62,17 +61,17 @@ class BaseThresholdFunc(beam.DoFn):
     raise NotImplementedError
 
   def _update_prediction(
-      self, prediction: AnomalyPrediction) -> AnomalyPrediction:
-    if prediction.decision.score is None:
-      pred = 0
+      self, result: AnomalyResult) -> AnomalyResult:
+    if result.prediction.score is None:
+      label = 0
     else:
-      pred: int = 0 if prediction.decision.score < self.threshold else 1
+      label: int = 0 if result.prediction.score < self.threshold else 1
     return dataclasses.replace(
-        prediction,
-        decision=dataclasses.replace(
-            prediction.decision, prediction=pred, threshold=self.threshold))
+        result,
+        prediction=dataclasses.replace(
+            result.prediction, label=label, threshold=self.threshold))
 
 
 class BaseAggregation(Protocol):
-  def __call__(self, decisions: Iterable[AnomalyDecision]) -> AnomalyDecision:
+  def __call__(self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     ...

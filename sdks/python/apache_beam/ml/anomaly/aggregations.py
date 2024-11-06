@@ -21,7 +21,7 @@ import math
 import statistics
 from typing import Iterable
 
-from apache_beam.ml.anomaly.base import AnomalyDecision
+from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import BaseAggregation
 
 
@@ -40,22 +40,22 @@ class PredictionAggregation(BaseAggregation):
   def aggregate_predictions(self, predictions: Iterable[int]):
     raise NotImplementedError
 
-  def __call__(self, decisions: Iterable[AnomalyDecision]) -> AnomalyDecision:
+  def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     predictions = list(
         itertools.filterfalse(
             lambda prediction: prediction is None,
-            map(lambda decision: decision.prediction, decisions)))
+            map(lambda decision: decision.label, decisions)))
 
     if len(predictions) == 0:
-      return AnomalyDecision(model=self._model_override)
+      return AnomalyPrediction(model_id=self._model_override)
 
     prediction = self.aggregate_predictions(predictions)  # type: ignore
 
     info = ('[' + ('; '.join(map(str, decisions))) +
             ']') if self._include_history else ''
 
-    return AnomalyDecision(
-        model=self._model_override, prediction=prediction, info=info)
+    return AnomalyPrediction(
+        model_id=self._model_override, label=prediction, info=info)
 
 
 class MajorityVote(PredictionAggregation):
@@ -101,21 +101,21 @@ class ScoreAggregation(BaseAggregation):
   def aggregate_scores(self, predictions: Iterable[float]):
     raise NotImplementedError
 
-  def __call__(self, decisions: Iterable[AnomalyDecision]) -> AnomalyDecision:
+  def __call__(self, decisions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     scores = list(itertools.filterfalse(
         lambda score: math.isnan(score),
         map(lambda decision: decision.score, decisions)))
 
     if len(scores) == 0:
-      return AnomalyDecision(model=self._model_override)
+      return AnomalyPrediction(model_id=self._model_override)
 
     score = self.aggregate_scores(scores)  # type: ignore
 
     info = ('[' + ('; '.join(map(str, decisions))) +
             ']') if self._include_history else ''
 
-    return AnomalyDecision(
-        model=self._model_override, score=score, info=info)
+    return AnomalyPrediction(
+        model_id=self._model_override, score=score, info=info)
 
 
 class AverageScore(ScoreAggregation):

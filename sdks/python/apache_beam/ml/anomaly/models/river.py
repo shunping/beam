@@ -18,10 +18,10 @@
 import river.anomaly
 
 import apache_beam as beam
-from apache_beam.ml.anomaly.base import BaseAnomalyModel
+from apache_beam.ml.anomaly.base import AnomalyModel
 
 
-class RiverAnomalyModel(BaseAnomalyModel):
+class RiverAnomalyModel(AnomalyModel):
   def __init__(self):
     self._river_model = None
 

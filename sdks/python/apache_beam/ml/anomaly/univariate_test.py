@@ -116,7 +116,6 @@ class StdevTest(unittest.TestCase):
     self.assertTrue(math.isnan(mt.get()))
 
     mt.push(float('nan'))
-    print(mt.get())
     self.assertTrue(math.isnan(mt.get()))
 
     if isinstance(univariate.RollingStdevTracker, tracker):

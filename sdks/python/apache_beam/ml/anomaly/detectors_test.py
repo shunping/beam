@@ -21,13 +21,13 @@ import mock
 import unittest
 
 from apache_beam.ml.anomaly import detectors
-from apache_beam.ml.anomaly.base import BaseAnomalyModel
+from apache_beam.ml.anomaly.base import AnomalyModel
 
 
 class TestAnomalyDetector(unittest.TestCase):
 
   def setUp(self) -> None:
-    self.mocked_model_class = mock.create_autospec(type(BaseAnomalyModel))
+    self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 
@@ -58,7 +58,7 @@ class TestAnomalyDetector(unittest.TestCase):
 class TestEnsembleAnomalyDetector(unittest.TestCase):
 
   def setUp(self) -> None:
-    self.mocked_model_class = mock.create_autospec(type(BaseAnomalyModel))
+    self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 

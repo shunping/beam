@@ -28,8 +28,8 @@ from apache_beam.coders import DillCoder
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 
-from apache_beam.ml.anomaly.base import AnomalyDecision
 from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import BaseAggregation
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
@@ -57,7 +57,7 @@ class _ScoreAndLearn(beam.DoFn):
       self,
       element: Tuple[KeyT, Tuple[TempKeyT, beam.Row]],
       detector_state=beam.DoFn.StateParam(DETECTOR_STATE_INDEX),
-      **kwargs) -> Iterable[Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]]:
+      **kwargs) -> Iterable[Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]]:
 
     k1, (k2, data) = element
     self._underlying = detector_state.read()  # type: ignore
@@ -80,10 +80,10 @@ class _ScoreAndLearn(beam.DoFn):
       y = None
 
     yield k1, (k2,
-               AnomalyPrediction(
-                   data=data,
-                   decision=AnomalyDecision(
-                       model=self._detector.id,
+               AnomalyResult(
+                   example=data,
+                   prediction=AnomalyPrediction(
+                       model_id=self._detector.id,
                        score=self.score_and_learn(x, y, k2))))
 
     detector_state.write(self._underlying)  # type: ignore
@@ -97,13 +97,13 @@ class _EvaluateWithAUC(beam.DoFn):
     self._target = target
 
   def process(self,
-              element: Tuple[KeyT, AnomalyPrediction],
+              element: Tuple[KeyT, AnomalyResult],
               tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[KeyT, AnomalyPrediction]]:
+              **kwargs) -> Iterable[Tuple[KeyT, AnomalyResult]]:
 
     key, prediction = element
-    data = prediction.data
-    decision = prediction.decision
+    data = prediction.example
+    decision = prediction.prediction
 
     if not self._target:
       auc = float("nan")
@@ -114,22 +114,22 @@ class _EvaluateWithAUC(beam.DoFn):
       if trackers is None:
         trackers = {}
 
-      if decision.model not in trackers:
+      if decision.model_id not in trackers:
         from river.metrics import RollingROCAUC
-        trackers[decision.model] = RollingROCAUC(window_size=self._window_size)
-      trackers[decision.model].update(target, decision.score)
+        trackers[decision.model_id] = RollingROCAUC(window_size=self._window_size)
+      trackers[decision.model_id].update(target, decision.score)
 
-      auc = trackers[decision.model].get()
+      auc = trackers[decision.model_id].get()
 
-    yield key, AnomalyPrediction(
-        data=data, decision=dataclasses.replace(decision, auc=auc))
+    yield key, AnomalyResult(
+        example=data, prediction=dataclasses.replace(decision, auc=auc))
     tracker_state.write(trackers)  # type: ignore
 
 
 class _RunDetectors(
     beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]],
                     beam.PCollection[Tuple[KeyT, Tuple[TempKeyT,
-                                                       AnomalyPrediction]]]],
+                                                       AnomalyResult]]]],
     Generic[KeyT, TempKeyT]):
 
   def __init__(self,
@@ -142,7 +142,7 @@ class _RunDetectors(
 
   def expand(
       self, input: beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]]
-  ) -> beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]]:
+  ) -> beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]]:
     model_results = []
     for detector in self._detectors:
       if isinstance(detector, EnsembleAnomalyDetector):
@@ -154,17 +154,17 @@ class _RunDetectors(
             | f"Reset model label for ensemble ({detector})" >>
             beam.MapTuple(lambda k, v, label=detector.id: (k, (
                 v[0],
-                AnomalyPrediction(
-                    data=v[1].data,
-                    decision=dataclasses.replace(v[1].decision, model=label)))))
-            .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
+                AnomalyResult(
+                    example=v[1].example,
+                    prediction=dataclasses.replace(v[1].prediction, model_id=label)))))
+            .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
       else:
         score_result = (
             input
             | f"Reshuffle ({detector})" >> beam.Reshuffle()
             | f"Score and learn ({detector})" >> beam.ParDo(
                 _ScoreAndLearn(detector)).with_output_types(
-                    Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
+                    Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
 
       if detector.threshold_func:
         model_results.append(score_result
@@ -183,17 +183,17 @@ class _RunDetectors(
           | beam.GroupByKey()
           | beam.MapTuple(lambda k, v, agg=self._aggregation_strategy: (k[0], (
               k[1],
-              AnomalyPrediction(
-                  data=v[0].data,
-                  decision=agg([prediction.decision for prediction in v])))))
-          .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]))
+              AnomalyResult(
+                  example=v[0].example,
+                  prediction=agg([result.prediction for result in v])))))
+          .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
 
     return ret
 
 
 class AnomalyDetection(
     beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
-                    beam.PCollection[Tuple[KeyT, AnomalyPrediction]]],
+                    beam.PCollection[Tuple[KeyT, AnomalyResult]]],
     Generic[KeyT, TempKeyT]):
 
   def __init__(self,
@@ -215,7 +215,7 @@ class AnomalyDetection(
   def expand(
       self,
       input: beam.PCollection[Tuple[KeyT, beam.Row]],
-  ) -> beam.PCollection[Tuple[KeyT, AnomalyPrediction]]:
+  ) -> beam.PCollection[Tuple[KeyT, AnomalyResult]]:
 
     assert self._detectors is not None
 
@@ -225,10 +225,10 @@ class AnomalyDetection(
         | _RunDetectors("root", self._detectors, self._aggregation_strategy))
 
     remove_temp_key_func: Callable[
-        [KeyT, Tuple[TempKeyT, AnomalyPrediction]],
-        Tuple[KeyT, AnomalyPrediction]] = lambda k, v: (k, v[1])
+        [KeyT, Tuple[TempKeyT, AnomalyResult]],
+        Tuple[KeyT, AnomalyResult]] = lambda k, v: (k, v[1])
     ret |= beam.MapTuple(remove_temp_key_func).with_input_types(
-        Tuple[KeyT, Tuple[TempKeyT, AnomalyPrediction]]).with_output_types(
-            Tuple[KeyT, AnomalyPrediction])
+        Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]).with_output_types(
+            Tuple[KeyT, AnomalyResult])
 
     return ret  # type: ignore

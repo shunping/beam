@@ -82,9 +82,9 @@ def run():
             algorithm_kwargs={"window_size": 50},
             features=["feat_2"],
             target="label"))
-    detectors.append(
-        anomaly.AnomalyDetector(
-            algorithm="iLOF", features=["feat_1", "feat_2"], target="label"))
+    # detectors.append(
+    #     anomaly.AnomalyDetector(
+    #         algorithm="iLOF", features=["feat_1", "feat_2"], target="label"))
     detectors.append(
         anomaly.EnsembleAnomalyDetector(
             n=3,

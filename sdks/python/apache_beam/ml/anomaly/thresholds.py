@@ -24,7 +24,7 @@ from typing import Union
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
-from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import BaseThresholdFunc
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
@@ -38,8 +38,8 @@ class FixedThreshold(BaseThresholdFunc):
   def threshold(self):
     return self._threshold
 
-  def process(self, element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+  def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
     yield k1, (k2, self._update_prediction(prediction))
 
@@ -65,15 +65,15 @@ class QuantileThreshold(BaseThresholdFunc):
     return self._tracker.get(self._quantile)  # type: ignore
 
   def process(self,
-              element: Tuple[Any, Tuple[Any, AnomalyPrediction]],
+              element: Tuple[Any, Tuple[Any, AnomalyResult]],
               tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyPrediction]]]:
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
     self._tracker = tracker_state.read()  # type: ignore
     if self._tracker is None:
       self._tracker = self._tracker_class(**self._tracker_kwargs)
-    self._tracker.push(prediction.decision.score)
+    self._tracker.push(prediction.prediction.score)
 
     yield k1, (k2, self._update_prediction(prediction))
 

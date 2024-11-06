@@ -18,7 +18,7 @@
 import logging
 import unittest
 
-from apache_beam.ml.anomaly.base import AnomalyDecision
+from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly import aggregations
 
 
@@ -26,11 +26,11 @@ from apache_beam.ml.anomaly import aggregations
 class MajorityVoteTest(unittest.TestCase):
 
   def test_default(self):
-    normal = AnomalyDecision(prediction=0)
-    outlier = AnomalyDecision(prediction=1)
+    normal = AnomalyPrediction(label=0)
+    outlier = AnomalyPrediction(label=1)
     self._vote = aggregations.MajorityVote()
 
-    self.assertEqual(self._vote([]), AnomalyDecision())
+    self.assertEqual(self._vote([]), AnomalyPrediction())
 
     self.assertEqual(self._vote([normal]), normal)
 
@@ -44,8 +44,8 @@ class MajorityVoteTest(unittest.TestCase):
     self.assertEqual(self._vote([outlier, normal]), normal)
 
   def test_tie_breaker(self):
-    normal = AnomalyDecision(prediction=0)
-    outlier = AnomalyDecision(prediction=1)
+    normal = AnomalyPrediction(label=0)
+    outlier = AnomalyPrediction(label=1)
     self._vote = aggregations.MajorityVote(tie_breaker=1)
 
     self.assertEqual(self._vote([outlier, normal]), outlier)
@@ -54,11 +54,11 @@ class MajorityVoteTest(unittest.TestCase):
 class AllVoteTest(unittest.TestCase):
 
   def test_default(self):
-    normal = AnomalyDecision(prediction=0)
-    outlier = AnomalyDecision(prediction=1)
+    normal = AnomalyPrediction(label=0)
+    outlier = AnomalyPrediction(label=1)
     self._vote = aggregations.AllVote()
 
-    self.assertEqual(self._vote([]), AnomalyDecision())
+    self.assertEqual(self._vote([]), AnomalyPrediction())
 
     self.assertEqual(self._vote([normal]), normal)
 
@@ -74,11 +74,11 @@ class AllVoteTest(unittest.TestCase):
 class AnyVoteTest(unittest.TestCase):
 
   def test_default(self):
-    normal = AnomalyDecision(prediction=0)
-    outlier = AnomalyDecision(prediction=1)
+    normal = AnomalyPrediction(label=0)
+    outlier = AnomalyPrediction(label=1)
     vote = aggregations.AnyVote()
 
-    self.assertEqual(vote([]), AnomalyDecision())
+    self.assertEqual(vote([]), AnomalyPrediction())
 
     self.assertEqual(vote([normal]), normal)
 
@@ -96,13 +96,13 @@ class AverageScoreTest(unittest.TestCase):
   def test_default(self):
     avg = aggregations.AverageScore()
 
-    self.assertEqual(avg([]), AnomalyDecision())
+    self.assertEqual(avg([]), AnomalyPrediction())
 
-    self.assertEqual(avg([AnomalyDecision(score=1)]), AnomalyDecision(score=1))
+    self.assertEqual(avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
 
     self.assertEqual(
-        avg([AnomalyDecision(score=1),
-             AnomalyDecision(score=2)]), AnomalyDecision(score=1.5))
+        avg([AnomalyPrediction(score=1),
+             AnomalyPrediction(score=2)]), AnomalyPrediction(score=1.5))
 
 
 if __name__ == '__main__':
