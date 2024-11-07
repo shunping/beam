@@ -34,7 +34,7 @@ from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 class AnomalyDetector(Generic[ScoreT, LabelT]):
   algorithm: str
   algorithm_args: Optional[dict[str, Any]] = None
-  id: str = ""
+  id: Optional[str] = None
   features: Optional[List[str]] = None
   target: Optional[str] = None
   threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None

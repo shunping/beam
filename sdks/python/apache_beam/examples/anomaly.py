@@ -62,7 +62,9 @@ def run(argv=None, save_main_session=True):
         # TODO: get rid of this conversion between BeamSchema to beam.Row.
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(
-            detectors, aggregation_strategy=AnyVote(include_history=False))
+            detectors,
+            #aggregation_strategy=AnyVote(include_history=False)
+            )
         | beam.Map(logging.info))
 
 

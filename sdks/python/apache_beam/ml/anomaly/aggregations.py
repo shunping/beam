@@ -21,6 +21,7 @@ import statistics
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import Optional
 from typing import Union
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
@@ -35,7 +36,7 @@ class SimpleAggregation(AggregationFunc[ScoreT, LabelT]):
                agg_func: Union[Callable[[Iterable[ScoreT]], ScoreT],
                                Callable[[Iterable[LabelT]], LabelT]],
                include_history: bool = False,
-               model_override: str = ""):
+               model_override: Optional[str] = None):
     self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = model_override

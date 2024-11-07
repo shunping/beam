@@ -31,7 +31,7 @@ LabelT = TypeVar('LabelT')
 
 @dataclass(frozen=True)
 class AnomalyPrediction(Generic[ScoreT, LabelT]):
-  model_id: Optional[str] = ""
+  model_id: Optional[str] = None
   score: Optional[ScoreT] = None
   label: Optional[LabelT] = None
   threshold: Optional[ScoreT] = None

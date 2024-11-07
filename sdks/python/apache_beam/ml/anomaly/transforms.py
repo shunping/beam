@@ -94,7 +94,7 @@ class _RunDetectors(
     Generic[KeyT, ExampleT, ScoreT, LabelT]):
 
   def __init__(self,
-               model_id: str,
+               model_id: Optional[str],
                detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
                aggregation_strategy: Optional[AggregationFunc] = None):
     self._label = model_id
@@ -148,6 +148,8 @@ class _RunDetectors(
 
     ret = merged
     if self._aggregation_strategy is not None:
+      if getattr(self._aggregation_strategy, "_model_override") is None:
+        setattr(self._aggregation_strategy, "_model_override", self._label)
       ret = (
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0]), v[1]))
@@ -191,7 +193,7 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
     ret = (
         input
         | "Add temp key" >> beam.Map(self.maybe_add_key)
-        | _RunDetectors("root", self._detectors, self._aggregation_strategy))
+        | _RunDetectors(None, self._detectors, self._aggregation_strategy))
 
     remove_temp_key_func: Callable[
         [KeyT, Tuple[Any, AnomalyResult[ExampleT, ScoreT, LabelT]]],
