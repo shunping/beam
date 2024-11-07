@@ -21,8 +21,8 @@ from typing import Optional
 from typing import List
 import uuid
 
-from apache_beam.ml.anomaly.base import BaseAggregationFunc
-from apache_beam.ml.anomaly.base import BaseThresholdFunc
+from apache_beam.ml.anomaly.base import AggregationFunc
+from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.aggregations import ScoreAggregation
 from apache_beam.ml.anomaly.aggregations import AverageScore
 
@@ -36,7 +36,7 @@ class AnomalyDetector:
   id: str = ""
   features: Optional[List[str]] = None
   target: Optional[str] = None
-  threshold_func: Optional[BaseThresholdFunc] = None
+  threshold_func: Optional[ThresholdFunc] = None
 
   def __post_init__(self):
     canonical_alg = self.algorithm.lower()
@@ -50,7 +50,7 @@ class AnomalyDetector:
 @dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetector(AnomalyDetector):
   n: int = 10
-  aggregation_strategy: Optional[BaseAggregationFunc] = ScoreAggregation(AverageScore)
+  aggregation_strategy: Optional[AggregationFunc] = ScoreAggregation(AverageScore)
   weak_learners: Optional[List[AnomalyDetector]] = None
 
   def __post_init__(self):

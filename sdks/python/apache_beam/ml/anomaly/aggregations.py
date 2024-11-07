@@ -23,10 +23,10 @@ from typing import Iterable
 from typing import Callable
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.base import BaseAggregationFunc
+from apache_beam.ml.anomaly.base import AggregationFunc
 
 
-class LabelAggregation(BaseAggregationFunc[int]):
+class LabelAggregation(AggregationFunc[int]):
 
   def __call__(self,
                predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
@@ -46,7 +46,7 @@ class LabelAggregation(BaseAggregationFunc[int]):
         model_id=self._model_override, label=label, agg_history=history)
 
 
-class ScoreAggregation(BaseAggregationFunc[float]):
+class ScoreAggregation(AggregationFunc[float]):
 
   def __call__(self,
                predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:

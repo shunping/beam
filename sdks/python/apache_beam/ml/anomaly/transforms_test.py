@@ -26,7 +26,7 @@ from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
-from apache_beam.ml.anomaly.thresholds import FixedThreshold
+from apache_beam.ml.anomaly.thresholds import StatelessThresholdDoFn
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
 
@@ -65,7 +65,7 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_func=StatelessThresholdDoFn(3),
             id="sad_x1"))
 
     with beam.Pipeline() as p:
@@ -117,13 +117,13 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_func=StatelessThresholdDoFn(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=FixedThreshold(2),
+            threshold_func=StatelessThresholdDoFn(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
@@ -156,13 +156,13 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_func=StatelessThresholdDoFn(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=FixedThreshold(2),
+            threshold_func=StatelessThresholdDoFn(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (

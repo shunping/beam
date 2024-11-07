@@ -60,8 +60,8 @@ def run():
             # id="SAD_1",
             features=["feat_1"],
             target="label",
-            threshold_func=anomaly.FixedThreshold(3),
-            #threshold_func=anomaly.QuantileThreshold(0.95),
+            #threshold_func=anomaly.FixedThreshold(3),
+            threshold_func=anomaly.QuantileThreshold(0.95),
         ))
     detectors.append(
         anomaly.AnomalyDetector(

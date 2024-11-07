@@ -14,12 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 """Base classes for anomaly detection"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-import dataclasses
 from dataclasses import dataclass
 from typing import Callable
 from typing import Generic
@@ -27,9 +25,6 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import TypeVar
-from typing import Union
-
-import apache_beam as beam
 
 EPSILON = 1e-12
 
@@ -38,13 +33,14 @@ ScoreT = TypeVar('ScoreT')
 LabelT = TypeVar('LabelT')
 AggregateT = TypeVar('AggregateT')
 
+
 @dataclass(frozen=True)
 class AnomalyPrediction(Generic[ScoreT, LabelT]):
   model_id: Optional[str] = ""
   score: Optional[ScoreT] = None
   label: Optional[LabelT] = None
   threshold: Optional[ScoreT] = None
-  info: str = ''
+  info: str = ""
   agg_history: Optional[List[AnomalyPrediction]] = None
 
 
@@ -55,42 +51,48 @@ class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
 
 
 class AnomalyModel(ABC, Generic[ExampleT, ScoreT]):
+
   @abstractmethod
   def learn_one(self, x: ExampleT) -> None:
-    ...
+    raise NotImplementedError
 
   @abstractmethod
   def score_one(self, x: ExampleT) -> ScoreT:
-    ...
-
-
-class BaseThresholdFunc(beam.DoFn):
-  @property
-  def threshold(self) -> Union[int, float]:
     raise NotImplementedError
 
-  def _update_prediction(
-      self, result: AnomalyResult) -> AnomalyResult:
-    if result.prediction.score is None:
-      label = 0
-    else:
-      label: int = 0 if result.prediction.score < self.threshold else 1
-    return dataclasses.replace(
-        result,
-        prediction=dataclasses.replace(
-            result.prediction, label=label, threshold=self.threshold))
 
+class ThresholdFunc(Generic[ScoreT, LabelT]):
 
-class BaseAggregationFunc(Generic[AggregateT]):
   def __init__(self,
-              agg_func: Callable[[Iterable[AggregateT]], AggregateT],
-              include_history=False,
-              model_override="",
-              **kwargs):
+               normal_label=None,
+               outlier_label=None,
+               label_class: type[LabelT] = int):
+    self._normal_label = label_class(0) if normal_label is None else normal_label  # type: ignore
+    self._outlier_label = label_class(1) if outlier_label is None else outlier_label  # type: ignore
+    self._threshold = None
+
+  def __call__(self, score: ScoreT) -> LabelT:
+    raise NotImplementedError
+
+  @property
+  def is_stateful(self) -> bool:
+    raise NotImplementedError
+
+  @property
+  def threshold(self) -> Optional[ScoreT]:
+    return self._threshold
+
+
+class AggregationFunc(Generic[AggregateT]):
+
+  def __init__(self,
+               agg_func: Callable[[Iterable[AggregateT]], AggregateT],
+               include_history=False,
+               model_override=""):
     self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = model_override
-    self._kwargs = kwargs
 
-  def __call__(self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
-    ...
+  def __call__(self,
+               predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+    raise NotImplementedError

@@ -15,28 +15,42 @@
 # limitations under the License.
 #
 
+import copy
+import dataclasses
 from typing import Any
+from typing import Generic
 from typing import Iterable
-from typing import Optional
 from typing import Tuple
-from typing import Union
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import BaseThresholdFunc
+from apache_beam.ml.anomaly.base import ThresholdFunc
+from apache_beam.ml.anomaly.base import ScoreT
+from apache_beam.ml.anomaly.base import LabelT
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
-class FixedThreshold(BaseThresholdFunc):
+class BaseThresholdDoFn(beam.DoFn):
+  ...
 
-  def __init__(self, threshold: Union[int, float]):
-    self._threshold = threshold
 
-  @property
-  def threshold(self):
-    return self._threshold
+class StatelessThresholdDoFn(BaseThresholdDoFn):
+
+  def __init__(self, threshold_func: ThresholdFunc):
+    assert not threshold_func.is_stateful, \
+      "This DoFn can only take stateless function as threshold_func"
+    self._threshold_func = threshold_func
+
+  def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
+    label = self._threshold_func(result.prediction.score)
+    return dataclasses.replace(
+        result,
+        prediction=dataclasses.replace(
+            result.prediction,
+            label=label,
+            threshold=self._threshold_func._threshold))
 
   def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
@@ -44,25 +58,20 @@ class FixedThreshold(BaseThresholdFunc):
     yield k1, (k2, self._update_prediction(prediction))
 
 
-class QuantileThreshold(BaseThresholdFunc):
+class StatefulThresholdDoFn(BaseThresholdDoFn):
   TRACKER_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self,
-               quantile: float,
-               quantile_tracker_class: Optional[type[
-                   univariate.BatchQuantileTracker]] = None,
-               quantile_tracker_kwargs: Optional[dict[str, Any]] = None):
-    self._quantile = quantile
-    if quantile_tracker_class is None:
-      self._tracker_class = univariate.SimpleQuantile
-      self._tracker_kwargs = {"window_size": 100}
-    else:
-      self._tracker_class = quantile_tracker_class
-      self._tracker_kwargs = quantile_tracker_kwargs if quantile_tracker_kwargs is not None else {}
+  def __init__(self, threshold_func: ThresholdFunc):
+    assert threshold_func.is_stateful, \
+      "This DoFn can only take stateful function as threshold_func"
+    self._original_func = threshold_func
 
-  @property
-  def threshold(self) -> float:
-    return self._tracker.get(self._quantile)  # type: ignore
+  def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
+    label = self._tracker(result.prediction.score)
+    return dataclasses.replace(
+        result,
+        prediction=dataclasses.replace(
+            result.prediction, label=label, threshold=self._tracker._threshold))
 
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyResult]],
@@ -72,9 +81,48 @@ class QuantileThreshold(BaseThresholdFunc):
 
     self._tracker = tracker_state.read()  # type: ignore
     if self._tracker is None:
-      self._tracker = self._tracker_class(**self._tracker_kwargs)
-    self._tracker.push(prediction.prediction.score)
+      self._tracker = copy.deepcopy(self._original_func)
 
     yield k1, (k2, self._update_prediction(prediction))
 
     tracker_state.write(self._tracker)  # type: ignore
+
+
+class FixedThreshold(Generic[ScoreT, LabelT], ThresholdFunc[ScoreT, LabelT]):
+
+  def __init__(self, threshold: ScoreT, **kwargs):
+    super().__init__(**kwargs)
+    self._threshold = threshold
+
+  @property
+  def is_stateful(self) -> bool:
+    return False
+
+  def __call__(self, score: ScoreT) -> LabelT:
+    if score is None or score < self._threshold:  # type: ignore
+      return self._normal_label
+
+    return self._outlier_label
+
+
+class QuantileThreshold(Generic[ScoreT, LabelT], ThresholdFunc[ScoreT, LabelT]):
+
+  def __init__(self, quantile: float, **kwargs):
+    super().__init__(**kwargs)
+    self._quantile = quantile
+    self._tracker_class = univariate.SimpleQuantile
+    self._tracker_kwargs = {"window_size": 100}
+    self._tracker = self._tracker_class(**self._tracker_kwargs)
+
+  @property
+  def is_stateful(self) -> bool:
+    return True
+
+  def __call__(self, score: ScoreT) -> LabelT:
+    self._tracker.push(score)
+    self._threshold = self._tracker.get(self._quantile)
+
+    if score is None or score < self._threshold:  # type: ignore
+      return self._normal_label
+
+    return self._outlier_label

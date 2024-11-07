@@ -53,7 +53,10 @@ class TestFixedThreshold(unittest.TestCase):
       result = (
           p
           | beam.Create(input)
-          | beam.ParDo(thresholds.FixedThreshold(2)))
+          | beam.ParDo(
+              thresholds.StatelessThresholdDoFn(
+                  thresholds.FixedThreshold(2, normal_label=0,
+                                            outlier_label=1))))
 
       assert_that(result, equal_to(expected))
 
@@ -101,7 +104,10 @@ class TestQuantileThreshold(unittest.TestCase):
           p
           | beam.Create(input)
           # use median just for test convenience
-          | beam.ParDo(thresholds.QuantileThreshold(0.5)))
+          | beam.ParDo(
+              thresholds.StatefulThresholdDoFn(
+                  thresholds.QuantileThreshold(
+                      quantile=0.5, normal_label=0, outlier_label=1))))
 
       assert_that(result, equal_to(expected))
 

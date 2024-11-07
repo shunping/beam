@@ -30,10 +30,11 @@ from apache_beam.utils import timestamp
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import BaseAggregationFunc
+from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
+from apache_beam.ml.anomaly import thresholds
 
 KeyT = TypeVar('KeyT')
 TempKeyT = TypeVar('TempKeyT')
@@ -98,7 +99,7 @@ class _RunDetectors(
   def __init__(self,
                model_id,
                detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[BaseAggregationFunc] = None):
+               aggregation_strategy: Optional[AggregationFunc] = None):
     self._label = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
@@ -115,11 +116,12 @@ class _RunDetectors(
                 detector.weak_learners,  # type: ignore
                 detector.aggregation_strategy)
             | f"Reset model label for ensemble ({detector})" >>
-            beam.MapTuple(lambda k, v, label=detector.id: (k, (
-                v[0],
-                AnomalyResult(
-                    example=v[1].example,
-                    prediction=dataclasses.replace(v[1].prediction, model_id=label)))))
+            beam.MapTuple(lambda k, v, label=detector.id:
+                          (k, (v[0],
+                               AnomalyResult(
+                                   example=v[1].example,
+                                   prediction=dataclasses.replace(
+                                       v[1].prediction, model_id=label)))))
             .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
       else:
         score_result = (
@@ -130,9 +132,16 @@ class _RunDetectors(
                     Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
 
       if detector.threshold_func:
-        model_results.append(score_result
-                             | f"Run threshold function ({detector})" >>
-                             beam.ParDo(detector.threshold_func))
+        if detector.threshold_func.is_stateful:
+          model_results.append(
+              score_result
+              | f"Run stateful threshold function ({detector})" >> beam.ParDo(
+                  thresholds.StatefulThresholdDoFn(detector.threshold_func)))
+        else:
+          model_results.append(
+              score_result
+              | f"Run stateless threshold function ({detector})" >> beam.ParDo(
+                  thresholds.StatelessThresholdDoFn(detector.threshold_func)))
       else:
         model_results.append(score_result)
 
@@ -154,19 +163,15 @@ class _RunDetectors(
     return ret
 
 
-class AnomalyDetection(
-    beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
-                    beam.PCollection[Tuple[KeyT, AnomalyResult]]],
-    Generic[KeyT, TempKeyT]):
+class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
+                                       beam.PCollection[Tuple[KeyT,
+                                                              AnomalyResult]]],
+                       Generic[KeyT, TempKeyT]):
 
   def __init__(self,
                detectors: Iterable[AnomalyDetector],
-               aggregation_func: Optional[BaseAggregationFunc] = None,
-               is_nested: bool = False,
-               with_auc: bool = False) -> None:
+               aggregation_func: Optional[AggregationFunc] = None) -> None:
     self._detectors = detectors
-    self._with_auc = with_auc
-    self._is_nested = is_nested
     self._aggregation_strategy = aggregation_func
 
   def maybe_add_key(
@@ -191,7 +196,9 @@ class AnomalyDetection(
         [KeyT, Tuple[TempKeyT, AnomalyResult]],
         Tuple[KeyT, AnomalyResult]] = lambda k, v: (k, v[1])
     ret |= beam.MapTuple(remove_temp_key_func).with_input_types(
-        Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]).with_output_types(
-            Tuple[KeyT, AnomalyResult])
+        Tuple[KeyT,
+              Tuple[TempKeyT,
+                    AnomalyResult]]).with_output_types(Tuple[KeyT,
+                                                             AnomalyResult])
 
     return ret  # type: ignore
