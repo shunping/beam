@@ -112,7 +112,7 @@ class _RunDetectors(
         score_result = (
             input | _RunDetectors(
                 detector.id,
-                detector.weak_learners,  # type: ignore
+                detector.learners,  # type: ignore
                 detector.aggregation_strategy)
             | f"Reset model label for ensemble ({detector})" >>
             beam.MapTuple(lambda k, v, label=detector.id:

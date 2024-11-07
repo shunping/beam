@@ -23,7 +23,6 @@ from typing import Optional
 from typing import List
 import uuid
 
-from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.base import LabelT
 from apache_beam.ml.anomaly.base import ScoreT
@@ -53,7 +52,7 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
 class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
   n: int = 10
   aggregation_strategy: Optional[AggregationFunc[ScoreT, Any]] = None
-  weak_learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
+  learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
 
   def __post_init__(self):
     # propagate fields to base class except for id
@@ -61,15 +60,15 @@ class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
         f.name for f in dataclasses.fields(super()) if f.name != "id")
     kwargs = {field: getattr(self, field) for field in field_names}
 
-    # set a field (weak_learners) in a frozen dataclass
-    if not self.weak_learners:
-      super().__setattr__('weak_learners', [])
+    # set a field (learners) in a frozen dataclass
+    if not self.learners:
+      super().__setattr__('learners', [])
       for _ in range(self.n):
-        self.weak_learners.append(AnomalyDetector(**kwargs))  # type: ignore
+        self.learners.append(AnomalyDetector(**kwargs))  # type: ignore
     else:
       logging.warning("setting weak_learners will override all other arguments "
                       "except aggregation_strategy (if set).")
-      if self.n != len(self.weak_learners):
+      if self.n != len(self.learners):
         logging.warning("parameter n will be overwritten with the number of "
                         "weak learners provided to the instantiation.")
-        super().__setattr__('n', len(self.weak_learners))
+        super().__setattr__('n', len(self.learners))

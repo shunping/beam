@@ -17,11 +17,10 @@
 """Base classes for anomaly detection"""
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+import abc
 from dataclasses import dataclass
 from typing import Generic
 from typing import Iterable
-from typing import List
 from typing import Optional
 from typing import TypeVar
 
@@ -38,7 +37,7 @@ class AnomalyPrediction(Generic[ScoreT, LabelT]):
   label: Optional[LabelT] = None
   threshold: Optional[ScoreT] = None
   info: str = ""
-  agg_history: Optional[List[AnomalyPrediction[ScoreT, LabelT]]] = None
+  agg_history: Optional[Iterable[AnomalyPrediction[ScoreT, LabelT]]] = None
 
 
 @dataclass(frozen=True)
@@ -47,29 +46,29 @@ class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
   prediction: AnomalyPrediction[ScoreT, LabelT]
 
 
-class AnomalyModel(ABC, Generic[ExampleT, ScoreT]):
+class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
 
-  @abstractmethod
+  @abc.abstractmethod
   def learn_one(self, x: ExampleT) -> None:
     raise NotImplementedError
 
-  @abstractmethod
+  @abc.abstractmethod
   def score_one(self, x: ExampleT) -> ScoreT:
     raise NotImplementedError
 
 
-class ThresholdFunc(ABC, Generic[ScoreT, LabelT]):
+class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
   def __init__(self, normal_label: LabelT = 0, outlier_label: LabelT = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
 
   @property
-  @abstractmethod
+  @abc.abstractmethod
   def is_stateful(self) -> bool:
     raise NotImplementedError
 
   @property
-  @abstractmethod
+  @abc.abstractmethod
   def threshold(self) -> Optional[ScoreT]:
     raise NotImplementedError
 
@@ -77,9 +76,9 @@ class ThresholdFunc(ABC, Generic[ScoreT, LabelT]):
     raise NotImplementedError
 
 
-class AggregationFunc(ABC, Generic[ScoreT, LabelT]):
+class AggregationFunc(abc.ABC, Generic[ScoreT, LabelT]):
 
-  @abstractmethod
+  @abc.abstractmethod
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]
   ) -> AnomalyPrediction[ScoreT, LabelT]:
