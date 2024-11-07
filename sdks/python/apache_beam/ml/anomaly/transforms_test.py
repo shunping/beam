@@ -20,13 +20,12 @@ import unittest
 
 import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AnyVote
-from apache_beam.ml.anomaly.aggregations import LabelAggregation
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
-from apache_beam.ml.anomaly.thresholds import StatelessThresholdDoFn
+from apache_beam.ml.anomaly.thresholds import FixedThreshold
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
 
@@ -65,7 +64,7 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=StatelessThresholdDoFn(3),
+            threshold_func=FixedThreshold(3),
             id="sad_x1"))
 
     with beam.Pipeline() as p:
@@ -117,13 +116,13 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=StatelessThresholdDoFn(3),
+            threshold_func=FixedThreshold(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=StatelessThresholdDoFn(2),
+            threshold_func=FixedThreshold(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
@@ -156,26 +155,26 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=StatelessThresholdDoFn(3),
+            threshold_func=FixedThreshold(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=StatelessThresholdDoFn(2),
+            threshold_func=FixedThreshold(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors, aggregation_func=LabelAggregation(AnyVote())))
+          | AnomalyDetection(detectors, aggregation_func=AnyVote()))
 
       assert_that(
           result,
           equal_to([(input[0],
-                     AnomalyResult(example=input[1], prediction=decision))
-                    for input, decision in zip(self._input, aggregated)]))
+                     AnomalyResult(example=input[1], prediction=prediction))
+                    for input, prediction in zip(self._input, aggregated)]))
 
   def test_one_ensemble_detector(self):
     loda = [

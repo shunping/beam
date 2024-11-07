@@ -98,8 +98,7 @@ def run():
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
-            with_auc=True,
-            aggregation_func=anomaly.LabelAggregation(anomaly.AnyVote()),
+            aggregation_func=anomaly.AnyVote(),
         ))
 
     _ = results | beam.Map(debug_print)

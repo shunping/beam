@@ -8,7 +8,6 @@ from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
-from apache_beam.ml.anomaly.aggregations import LabelAggregation
 from apache_beam.ml.anomaly.aggregations import AnyVote
 
 
@@ -65,7 +64,7 @@ def run(argv=None, save_main_session=True):
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(
             detectors,
-            aggregation_func=LabelAggregation(AnyVote(), include_history=False))
+            aggregation_func=AnyVote(include_history=False))
         | beam.Map(logging.info))
 
 

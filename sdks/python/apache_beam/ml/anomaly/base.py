@@ -67,8 +67,10 @@ class ThresholdFunc(Generic[ScoreT, LabelT]):
                normal_label=None,
                outlier_label=None,
                label_class: type[LabelT] = int):
-    self._normal_label = label_class(0) if normal_label is None else normal_label  # type: ignore
-    self._outlier_label = label_class(1) if outlier_label is None else outlier_label  # type: ignore
+    self._normal_label = label_class(
+        0) if normal_label is None else normal_label  # type: ignore
+    self._outlier_label = label_class(
+        1) if outlier_label is None else outlier_label  # type: ignore
     self._threshold = None
 
   def __call__(self, score: ScoreT) -> LabelT:

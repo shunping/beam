@@ -18,7 +18,6 @@
 import copy
 import dataclasses
 from typing import Any
-from typing import Generic
 from typing import Iterable
 from typing import Tuple
 
@@ -33,14 +32,7 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
-  ...
-
-
-class StatelessThresholdDoFn(BaseThresholdDoFn):
-
   def __init__(self, threshold_func: ThresholdFunc):
-    assert not threshold_func.is_stateful, \
-      "This DoFn can only take stateless function as threshold_func"
     self._threshold_func = threshold_func
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
@@ -52,6 +44,14 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
             label=label,
             threshold=self._threshold_func._threshold))
 
+
+class StatelessThresholdDoFn(BaseThresholdDoFn):
+
+  def __init__(self, threshold_func: ThresholdFunc):
+    assert not threshold_func.is_stateful, \
+      "This DoFn can only take stateless function as threshold_func"
+    self._threshold_func = threshold_func
+
   def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
@@ -59,36 +59,29 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
 
 
 class StatefulThresholdDoFn(BaseThresholdDoFn):
-  TRACKER_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
+  THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
   def __init__(self, threshold_func: ThresholdFunc):
     assert threshold_func.is_stateful, \
       "This DoFn can only take stateful function as threshold_func"
     self._original_func = threshold_func
 
-  def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
-    label = self._tracker(result.prediction.score)
-    return dataclasses.replace(
-        result,
-        prediction=dataclasses.replace(
-            result.prediction, label=label, threshold=self._tracker._threshold))
-
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyResult]],
-              tracker_state=beam.DoFn.StateParam(TRACKER_STATE_INDEX),
+              threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
-    self._tracker = tracker_state.read()  # type: ignore
-    if self._tracker is None:
-      self._tracker = copy.deepcopy(self._original_func)
+    self._threshold_func = threshold_state.read()  # type: ignore
+    if self._threshold_func is None:
+      self._threshold_func = copy.deepcopy(self._original_func)
 
     yield k1, (k2, self._update_prediction(prediction))
 
-    tracker_state.write(self._tracker)  # type: ignore
+    threshold_state.write(self._threshold_func)  # type: ignore
 
 
-class FixedThreshold(Generic[ScoreT, LabelT], ThresholdFunc[ScoreT, LabelT]):
+class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
 
   def __init__(self, threshold: ScoreT, **kwargs):
     super().__init__(**kwargs)
@@ -105,7 +98,7 @@ class FixedThreshold(Generic[ScoreT, LabelT], ThresholdFunc[ScoreT, LabelT]):
     return self._outlier_label
 
 
-class QuantileThreshold(Generic[ScoreT, LabelT], ThresholdFunc[ScoreT, LabelT]):
+class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
 
   def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)
