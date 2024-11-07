@@ -18,6 +18,7 @@
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyModel
 
+
 class BeamRowModel(AnomalyModel[beam.Row, float]):
   def __init__(self, **kwargs):
     super().__init__(**kwargs)

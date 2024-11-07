@@ -31,25 +31,23 @@ from apache_beam.ml.anomaly.base import ScoreT
 
 
 class SimpleAggregation(AggregationFunc[ScoreT, LabelT]):
-
-  def __init__(self,
-               agg_func: Union[Callable[[Iterable[ScoreT]], ScoreT],
-                               Callable[[Iterable[LabelT]], LabelT]],
-               include_history: bool = False,
-               model_override: Optional[str] = None):
+  def __init__(
+      self,
+      agg_func: Union[Callable[[Iterable[ScoreT]], ScoreT],
+                      Callable[[Iterable[LabelT]], LabelT]],
+      include_history: bool = False,
+      model_override: Optional[str] = None):
     self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = model_override
 
 
 class LabelAggregation(SimpleAggregation[Any, LabelT]):
-
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[Any, LabelT]]
   ) -> AnomalyPrediction[Any, LabelT]:
     labels = [
-        prediction.label
-        for prediction in predictions
+        prediction.label for prediction in predictions
         if prediction.label is not None
     ]
 
@@ -65,7 +63,6 @@ class LabelAggregation(SimpleAggregation[Any, LabelT]):
 
 
 class ScoreAggregation(SimpleAggregation[ScoreT, Any]):
-
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[ScoreT, Any]]
   ) -> AnomalyPrediction[ScoreT, Any]:
@@ -87,11 +84,11 @@ class ScoreAggregation(SimpleAggregation[ScoreT, Any]):
         model_id=self._model_override, score=score, agg_history=history)
 
 
-def MajorityVote(normal_label=0,
-                 outlier_label=1,
-                 tie_breaker=0,
-                 **kwargs) -> LabelAggregation:
-
+def MajorityVote(
+    normal_label=0,
+    outlier_label=1,
+    tie_breaker=0,
+    **kwargs) -> LabelAggregation:
   def inner(predictions: Iterable[int]) -> int:
     counters = collections.Counter(predictions)
     if counters[normal_label] < counters[outlier_label]:
@@ -107,20 +104,18 @@ def MajorityVote(normal_label=0,
 
 # And scheme
 def AllVote(normal_label=0, outlier_label=1, **kwargs) -> LabelAggregation[int]:
-
   def inner(predictions: Iterable[int]) -> int:
-    return outlier_label if all(map(lambda p: p == outlier_label,
-                                    predictions)) else normal_label
+    return outlier_label if all(
+        map(lambda p: p == outlier_label, predictions)) else normal_label
 
   return LabelAggregation(inner, **kwargs)
 
 
 # Or scheme
 def AnyVote(normal_label=0, outlier_label=1, **kwargs) -> LabelAggregation[int]:
-
   def inner(predictions: Iterable[int]) -> int:
-    return outlier_label if any(map(lambda p: p == outlier_label,
-                                    predictions)) else normal_label
+    return outlier_label if any(
+        map(lambda p: p == outlier_label, predictions)) else normal_label
 
   return LabelAggregation(inner, **kwargs)
 

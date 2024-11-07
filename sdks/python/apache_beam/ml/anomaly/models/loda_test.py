@@ -1,5 +1,3 @@
-
-
 import logging
 import unittest
 
@@ -41,7 +39,7 @@ class TestLoda(unittest.TestCase):
     #   print(s/n)
     pass
 
+
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.INFO)
   unittest.main()
-

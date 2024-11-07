@@ -34,7 +34,6 @@ from apache_beam.testing.util import equal_to
 
 
 class TestAnomalyDetection(unittest.TestCase):
-
   def setUp(self):
     self._input = [
         (1, beam.Row(x1=1, x2=4)),
@@ -52,15 +51,12 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyPrediction(model_id='sad_x1', score=0, label=0, threshold=3),
         AnomalyPrediction(model_id='sad_x1', score=0, label=0, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=2.1213203435596424, label=0,
-            threshold=3),
+            model_id='sad_x1', score=2.1213203435596424, label=0, threshold=3),
         AnomalyPrediction(model_id='sad_x1', score=8.0, label=1, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=0.4898979485566356, label=0,
-            threshold=3),
+            model_id='sad_x1', score=0.4898979485566356, label=0, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=0.16452254913212455, label=0,
-            threshold=3),
+            model_id='sad_x1', score=0.16452254913212455, label=0, threshold=3),
     ]
     detectors = []
     detectors.append(
@@ -78,9 +74,11 @@ class TestAnomalyDetection(unittest.TestCase):
           | AnomalyDetection[Any, Any, Any, Any](detectors))
       assert_that(
           result,
-          equal_to([(input[0],
-                     AnomalyResult(example=input[1], prediction=decision))
-                    for input, decision in zip(self._input, sad_x1_expected)]))
+          equal_to([
+              (input[0], AnomalyResult(example=input[1], prediction=decision))
+              for input,
+              decision in zip(self._input, sad_x1_expected)
+          ]))
 
   def test_multiple_detectors_without_aggregation(self):
     sad_x1_expected = [
@@ -88,15 +86,12 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyPrediction(model_id='sad_x1', score=0, label=0, threshold=3),
         AnomalyPrediction(model_id='sad_x1', score=0, label=0, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=2.1213203435596424, label=0,
-            threshold=3),
+            model_id='sad_x1', score=2.1213203435596424, label=0, threshold=3),
         AnomalyPrediction(model_id='sad_x1', score=8.0, label=1, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=0.4898979485566356, label=0,
-            threshold=3),
+            model_id='sad_x1', score=0.4898979485566356, label=0, threshold=3),
         AnomalyPrediction(
-            model_id='sad_x1', score=0.16452254913212455, label=0,
-            threshold=3),
+            model_id='sad_x1', score=0.16452254913212455, label=0, threshold=3),
     ]
     sad_x2_expected = [
         AnomalyPrediction(model_id='sad_x2', score=0, label=0, threshold=2),
@@ -104,14 +99,10 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyPrediction(model_id='sad_x2', score=0, label=0, threshold=2),
         AnomalyPrediction(model_id='sad_x2', score=0, label=0, threshold=2),
         AnomalyPrediction(
-            model_id='sad_x2', score=0.5773502691896252, label=0,
-            threshold=2),
+            model_id='sad_x2', score=0.5773502691896252, label=0, threshold=2),
         AnomalyPrediction(model_id='sad_x2', score=11.5, label=1, threshold=2),
         AnomalyPrediction(
-            model_id='sad_x2',
-            score=0.5368754921931594,
-            label=0,
-            threshold=2),
+            model_id='sad_x2', score=0.5368754921931594, label=0, threshold=2),
     ]
 
     detectors = []
@@ -138,9 +129,11 @@ class TestAnomalyDetection(unittest.TestCase):
           result,
           equal_to(
               [(input[0], AnomalyResult(example=input[1], prediction=decision))
-               for input, decision in zip(self._input, sad_x1_expected)] +
+               for input,
+               decision in zip(self._input, sad_x1_expected)] +
               [(input[0], AnomalyResult(example=input[1], prediction=decision))
-               for input, decision in zip(self._input, sad_x2_expected)]))
+               for input,
+               decision in zip(self._input, sad_x2_expected)]))
 
   def test_multiple_detectors_with_aggregation(self):
     aggregated = [
@@ -175,9 +168,10 @@ class TestAnomalyDetection(unittest.TestCase):
 
       assert_that(
           result,
-          equal_to([(input[0],
-                     AnomalyResult(example=input[1], prediction=prediction))
-                    for input, prediction in zip(self._input, aggregated)]))
+          equal_to([(
+              input[0], AnomalyResult(example=input[1], prediction=prediction))
+                    for input,
+                    prediction in zip(self._input, aggregated)]))
 
   def test_one_ensemble_detector(self):
     loda = [
@@ -197,7 +191,10 @@ class TestAnomalyDetection(unittest.TestCase):
     detectors = []
     detectors.append(
         EnsembleAnomalyDetector(
-            algorithm="loda", algorithm_args={"n_init": 2}, n=3, aggregation_strategy=AverageScore()))
+            algorithm="loda",
+            algorithm_args={"n_init": 2},
+            n=3,
+            aggregation_strategy=AverageScore()))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
@@ -207,9 +204,11 @@ class TestAnomalyDetection(unittest.TestCase):
 
       assert_that(
           result,
-          equal_to([(input[0],
-                     AnomalyResult(example=input[1], prediction=decision))
-                    for input, decision in zip(self._input, loda)]))
+          equal_to([
+              (input[0], AnomalyResult(example=input[1], prediction=decision))
+              for input,
+              decision in zip(self._input, loda)
+          ]))
 
 
 if __name__ == '__main__':

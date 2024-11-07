@@ -28,7 +28,6 @@ from apache_beam.testing.util import equal_to
 
 
 class TestFixedThreshold(unittest.TestCase):
-
   def test_threshold(self):
     input = [
         (1, (2, AnomalyResult(beam.Row(x=10), AnomalyPrediction(score=1)))),
@@ -36,18 +35,27 @@ class TestFixedThreshold(unittest.TestCase):
         (1, (4, AnomalyResult(beam.Row(x=20), AnomalyPrediction(score=3)))),
     ]
     expected = [
-        (1, (2,
-             AnomalyResult(
-                 beam.Row(x=10),
-                 AnomalyPrediction(score=1, label=0, threshold=2)))),
-        (1, (3,
-             AnomalyResult(
-                 beam.Row(x=20),
-                 AnomalyPrediction(score=2, label=1, threshold=2)))),
-        (1, (4,
-             AnomalyResult(
-                 beam.Row(x=20),
-                 AnomalyPrediction(score=3, label=1, threshold=2)))),
+        (
+            1,
+            (
+                2,
+                AnomalyResult(
+                    beam.Row(x=10),
+                    AnomalyPrediction(score=1, label=0, threshold=2)))),
+        (
+            1,
+            (
+                3,
+                AnomalyResult(
+                    beam.Row(x=20),
+                    AnomalyPrediction(score=2, label=1, threshold=2)))),
+        (
+            1,
+            (
+                4,
+                AnomalyResult(
+                    beam.Row(x=20),
+                    AnomalyPrediction(score=3, label=1, threshold=2)))),
     ]
     with TestPipeline() as p:
       result = (
@@ -62,7 +70,6 @@ class TestFixedThreshold(unittest.TestCase):
 
 
 class TestQuantileThreshold(unittest.TestCase):
-
   def test_threshold(self):
     # use the input data with two keys to test stateful threshold function
     input = [
@@ -74,30 +81,48 @@ class TestQuantileThreshold(unittest.TestCase):
         (2, (4, AnomalyResult(beam.Row(x=60), AnomalyPrediction(score=30)))),
     ]
     expected = [
-        (1, (2,
-             AnomalyResult(
-                 beam.Row(x=10),
-                 AnomalyPrediction(score=1, label=1, threshold=1)))),
-        (1, (3,
-             AnomalyResult(
-                 beam.Row(x=20),
-                 AnomalyPrediction(score=2, label=1, threshold=1.5)))),
-        (2, (2,
-             AnomalyResult(
-                 beam.Row(x=40),
-                 AnomalyPrediction(score=10, label=1, threshold=10)))),
-        (2, (3,
-             AnomalyResult(
-                 beam.Row(x=50),
-                 AnomalyPrediction(score=20, label=1, threshold=15)))),
-        (1, (4,
-             AnomalyResult(
-                 beam.Row(x=30),
-                 AnomalyPrediction(score=3, label=1, threshold=2)))),
-        (2, (4,
-             AnomalyResult(
-                 beam.Row(x=60),
-                 AnomalyPrediction(score=30, label=1, threshold=20)))),
+        (
+            1,
+            (
+                2,
+                AnomalyResult(
+                    beam.Row(x=10),
+                    AnomalyPrediction(score=1, label=1, threshold=1)))),
+        (
+            1,
+            (
+                3,
+                AnomalyResult(
+                    beam.Row(x=20),
+                    AnomalyPrediction(score=2, label=1, threshold=1.5)))),
+        (
+            2,
+            (
+                2,
+                AnomalyResult(
+                    beam.Row(x=40),
+                    AnomalyPrediction(score=10, label=1, threshold=10)))),
+        (
+            2,
+            (
+                3,
+                AnomalyResult(
+                    beam.Row(x=50),
+                    AnomalyPrediction(score=20, label=1, threshold=15)))),
+        (
+            1,
+            (
+                4,
+                AnomalyResult(
+                    beam.Row(x=30),
+                    AnomalyPrediction(score=3, label=1, threshold=2)))),
+        (
+            2,
+            (
+                4,
+                AnomalyResult(
+                    beam.Row(x=60),
+                    AnomalyPrediction(score=30, label=1, threshold=20)))),
     ]
     with TestPipeline() as p:
       result = (

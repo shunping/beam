@@ -22,6 +22,7 @@ import numpy as np
 
 EPSILON = 1e-12
 
+
 class BaseTracker:
   def push(self, x):
     raise NotImplementedError()
@@ -174,7 +175,6 @@ class RollingStdevTracker(RollingTracker):
     else:
       self._mean = 0
       self._m2 = 0
-
 
   def get(self):
     if self._n < 2:

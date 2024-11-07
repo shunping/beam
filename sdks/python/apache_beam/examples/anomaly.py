@@ -44,17 +44,19 @@ def run(argv=None, save_main_session=True):
           threshold_criterion=FixedThreshold(3),
           #id="sad_x1"
       ))
-  detectors.append(AnomalyDetector[float, int](
-      algorithm="SAD",
-      features=["x2"],
-      threshold_criterion=FixedThreshold(2),
-      model_id="sad_x2"))
-  detectors.append(EnsembleAnomalyDetector[float, int](
-      n=3,
-      algorithm="loda",
-      model_id="ensemble-loda",
-      features=["x1", "x2"],
-      aggregation_strategy=AverageScore()))
+  detectors.append(
+      AnomalyDetector[float, int](
+          algorithm="SAD",
+          features=["x2"],
+          threshold_criterion=FixedThreshold(2),
+          model_id="sad_x2"))
+  detectors.append(
+      EnsembleAnomalyDetector[float, int](
+          n=3,
+          algorithm="loda",
+          model_id="ensemble-loda",
+          features=["x1", "x2"],
+          aggregation_strategy=AverageScore()))
   # The pipeline will be run on exiting the with block.
   with beam.Pipeline(options=pipeline_options) as p:
     _ = (
@@ -62,9 +64,8 @@ def run(argv=None, save_main_session=True):
         # TODO: get rid of this conversion between BeamSchema to beam.Row.
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(
-            detectors,
-            #aggregation_strategy=AnyVote(include_history=False)
-            )
+            detectors,  #aggregation_strategy=AnyVote(include_history=False)
+        )
         | beam.Map(logging.info))
 
 

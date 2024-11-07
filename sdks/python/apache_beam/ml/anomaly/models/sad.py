@@ -22,8 +22,10 @@ from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.models.base import BeamRowModel
 from apache_beam.ml.anomaly.univariate import EPSILON
 
+
 class StandardAbsoluteDeviation(BeamRowModel):
-  def __init__(self, sub_stat="mean", window_size=10, sub_stat_tracker=None, **kwargs):
+  def __init__(
+      self, sub_stat="mean", window_size=10, sub_stat_tracker=None, **kwargs):
     super().__init__(**kwargs)
     if sub_stat_tracker is None:
       if sub_stat == 'mean':

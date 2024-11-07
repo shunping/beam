@@ -23,7 +23,6 @@ from apache_beam.ml.anomaly import aggregations
 
 
 class MajorityVoteTest(unittest.TestCase):
-
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
@@ -51,7 +50,6 @@ class MajorityVoteTest(unittest.TestCase):
 
 
 class AllVoteTest(unittest.TestCase):
-
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
@@ -71,7 +69,6 @@ class AllVoteTest(unittest.TestCase):
 
 
 class AnyVoteTest(unittest.TestCase):
-
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
@@ -91,18 +88,18 @@ class AnyVoteTest(unittest.TestCase):
 
 
 class AverageScoreTest(unittest.TestCase):
-
   def test_default(self):
     avg = aggregations.AverageScore()
 
     self.assertEqual(avg([]), AnomalyPrediction())
 
     logging.error(avg([AnomalyPrediction(score=1)]))
-    self.assertEqual(avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
+    self.assertEqual(
+        avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
 
     self.assertEqual(
-        avg([AnomalyPrediction(score=1),
-             AnomalyPrediction(score=2)]), AnomalyPrediction(score=1.5))
+        avg([AnomalyPrediction(score=1), AnomalyPrediction(score=2)]),
+        AnomalyPrediction(score=1.5))
 
 
 if __name__ == '__main__':

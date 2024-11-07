@@ -23,12 +23,12 @@ from apache_beam.ml.anomaly import univariate
 
 
 class LodaWeakLearner(BeamRowModel):
-
-  def __init__(self,
-               n_init=256,
-               histogram_tracker_class=None,
-               histogram_tracker_kwargs=None,
-               **kwargs):
+  def __init__(
+      self,
+      n_init=256,
+      histogram_tracker_class=None,
+      histogram_tracker_kwargs=None,
+      **kwargs):
     super().__init__(**kwargs)
     if histogram_tracker_class is None:
       self._hist = univariate.SimpleHistogram(window_size=256, n_bins=256)
@@ -47,8 +47,8 @@ class LodaWeakLearner(BeamRowModel):
       n_features = len(self._features)
       self._projection = np.random.randn(n_features)
       n_nonzero_dims = int(np.sqrt(n_features))
-      zero_idx = np.random.permutation(len(self._features))[:(n_features -
-                                                              n_nonzero_dims)]
+      zero_idx = np.random.permutation(len(
+          self._features))[:(n_features - n_nonzero_dims)]
       self._projection[zero_idx] = 0
 
     x_np = np.array([x.__dict__[k] for k in self._features])

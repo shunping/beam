@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 """Base classes for anomaly detection"""
 from __future__ import annotations
 
@@ -46,10 +47,10 @@ class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
 
 
 class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
-
-  def __init__(self,
-               features: Optional[Iterable[str]] = None,
-               target: Optional[str] = None):
+  def __init__(
+      self,
+      features: Optional[Iterable[str]] = None,
+      target: Optional[str] = None):
     self._features = features
     self._target = target
 
@@ -68,7 +69,6 @@ class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
 
 
 class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
-
   def __init__(self, normal_label: LabelT = 0, outlier_label: LabelT = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -88,7 +88,6 @@ class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
 
 
 class AggregationFunc(abc.ABC, Generic[ScoreT, LabelT]):
-
   @abc.abstractmethod
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]

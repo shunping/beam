@@ -23,10 +23,11 @@ from river.anomaly.base import AnomalyDetector as RiverModel
 import apache_beam as beam
 from apache_beam.ml.anomaly.models.base import BeamRowModel
 
+
 class RiverAnomalyModel(BeamRowModel):
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
-    self._river_model : Optional[RiverModel] = None
+    self._river_model: Optional[RiverModel] = None
 
   def learn_one(self, x: beam.Row) -> None:
     self._river_model.learn_one(x.__dict__)  # type: ignore

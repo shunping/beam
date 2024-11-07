@@ -25,15 +25,14 @@ from apache_beam.ml.anomaly.base import AnomalyModel
 
 
 class TestAnomalyDetector(unittest.TestCase):
-
   def setUp(self) -> None:
     self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 
   def test_unknown_detector(self):
-    self.assertRaises(NotImplementedError, detectors.AnomalyDetector,
-                      "unknown-alg")
+    self.assertRaises(
+        NotImplementedError, detectors.AnomalyDetector, "unknown-alg")
 
   def test_known_detector(self):
     d1 = detectors.AnomalyDetector(self.my_alg)
@@ -57,15 +56,14 @@ class TestAnomalyDetector(unittest.TestCase):
 
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
-
   def setUp(self) -> None:
     self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 
   @staticmethod
-  def are_detectors_equal_ignoring_id(d1: detectors.AnomalyDetector,
-                                      d2: detectors.AnomalyDetector):
+  def are_detectors_equal_ignoring_id(
+      d1: detectors.AnomalyDetector, d2: detectors.AnomalyDetector):
     field_names = tuple(
         f.name for f in dataclasses.fields(detectors.AnomalyDetector))
     for f in field_names:

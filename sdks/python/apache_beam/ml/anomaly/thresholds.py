@@ -32,7 +32,6 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
-
   def __init__(self, threshold_func: ThresholdFunc):
     self._threshold_func = threshold_func
 
@@ -47,7 +46,6 @@ class BaseThresholdDoFn(beam.DoFn):
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
-
   def __init__(self, threshold_func: ThresholdFunc):
     assert not threshold_func.is_stateful, \
       "This DoFn can only take stateless function as threshold_func"
@@ -67,10 +65,11 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
       "This DoFn can only take stateful function as threshold_func"
     self._original_func = threshold_func
 
-  def process(self,
-              element: Tuple[Any, Tuple[Any, AnomalyResult]],
-              threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
+  def process(
+      self,
+      element: Tuple[Any, Tuple[Any, AnomalyResult]],
+      threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
+      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
     self._threshold_func = threshold_state.read()  # type: ignore
@@ -83,10 +82,7 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
 
 class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
-
-  def __init__(self,
-               threshold: ScoreT,
-               **kwargs):
+  def __init__(self, threshold: ScoreT, **kwargs):
     super().__init__(**kwargs)
     self._threshold = threshold
 
@@ -106,10 +102,7 @@ class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
 
 
 class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
-
-  def __init__(self,
-               quantile: float,
-               **kwargs):
+  def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)
     self._quantile = quantile
     self._tracker_class = univariate.SimpleQuantile

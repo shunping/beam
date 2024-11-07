@@ -25,7 +25,6 @@ from apache_beam.ml.anomaly import univariate
 
 
 class MeanTest(unittest.TestCase):
-
   @parameterized.expand(
       [univariate.SimpleMeanTracker, univariate.RollingMeanTracker])
   def test_mean(self, tracker):
@@ -75,7 +74,6 @@ class MeanTest(unittest.TestCase):
 
 
 class StdevTest(unittest.TestCase):
-
   @parameterized.expand(
       [univariate.SimpleStdevTracker, univariate.RollingStdevTracker])
   def test_stdev(self, tracker):
@@ -124,7 +122,6 @@ class StdevTest(unittest.TestCase):
 
 
 class MedianTest(unittest.TestCase):
-
   def test_median(self):
     mt = univariate.SimpleMedianTracker(3)
     self.assertTrue(math.isnan(mt.get()))
@@ -139,7 +136,6 @@ class MedianTest(unittest.TestCase):
 
 
 class MADTest(unittest.TestCase):
-
   def test_mad(self):
     mt = univariate.SimpleMADTracker(3)
     mt.push(1)
