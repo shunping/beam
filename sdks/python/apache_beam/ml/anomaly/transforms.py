@@ -25,16 +25,15 @@ from typing import TypeVar
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
-from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
-from apache_beam.utils import timestamp
-
+from apache_beam.ml.anomaly import thresholds
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
-from apache_beam.ml.anomaly import thresholds
+from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
+from apache_beam.utils import timestamp
 
 KeyT = TypeVar('KeyT')
 TempKeyT = TypeVar('TempKeyT')
@@ -131,17 +130,17 @@ class _RunDetectors(
                 _ScoreAndLearn(detector)).with_output_types(
                     Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
 
-      if detector.threshold_func:
-        if detector.threshold_func.is_stateful:
+      if detector.threshold_criterion:
+        if detector.threshold_criterion.is_stateful:
           model_results.append(
               score_result
               | f"Run stateful threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatefulThresholdDoFn(detector.threshold_func)))
+                  thresholds.StatefulThresholdDoFn(detector.threshold_criterion)))
         else:
           model_results.append(
               score_result
               | f"Run stateless threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatelessThresholdDoFn(detector.threshold_func)))
+                  thresholds.StatelessThresholdDoFn(detector.threshold_criterion)))
       else:
         model_results.append(score_result)
 
@@ -170,9 +169,9 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
 
   def __init__(self,
                detectors: Iterable[AnomalyDetector],
-               aggregation_func: Optional[AggregationFunc] = None) -> None:
+               aggregation_strategy: Optional[AggregationFunc] = None) -> None:
     self._detectors = detectors
-    self._aggregation_strategy = aggregation_func
+    self._aggregation_strategy = aggregation_strategy
 
   def maybe_add_key(
       self, element: Tuple[KeyT,

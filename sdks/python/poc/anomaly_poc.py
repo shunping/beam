@@ -61,7 +61,7 @@ def run():
             features=["feat_1"],
             target="label",
             #threshold_func=anomaly.FixedThreshold(3),
-            threshold_func=anomaly.QuantileThreshold(0.95),
+            threshold_criterion=anomaly.QuantileThreshold(0.95),
         ))
     detectors.append(
         anomaly.AnomalyDetector(
@@ -98,7 +98,7 @@ def run():
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
-            aggregation_func=anomaly.AnyVote(),
+            aggregation_strategy=anomaly.AnyVote(),
         ))
 
     _ = results | beam.Map(debug_print)

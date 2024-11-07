@@ -2,13 +2,13 @@ import argparse
 import logging
 
 import apache_beam as beam
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-from apache_beam.ml.anomaly.transforms import AnomalyDetection
+from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
-from apache_beam.ml.anomaly.aggregations import AnyVote
+from apache_beam.ml.anomaly.transforms import AnomalyDetection
+from apache_beam.options.pipeline_options import PipelineOptions
+from apache_beam.options.pipeline_options import SetupOptions
 
 
 def run(argv=None, save_main_session=True):
@@ -18,7 +18,7 @@ def run(argv=None, save_main_session=True):
     save_main_session: Used for internal testing.
   """
   parser = argparse.ArgumentParser()
-  known_args, pipeline_args = parser.parse_known_args(argv)
+  _, pipeline_args = parser.parse_known_args(argv)
 
   # We use the save_main_session option because one or more DoFn's in this
   # workflow rely on global context (e.g., a module imported at module level).
@@ -37,20 +37,20 @@ def run(argv=None, save_main_session=True):
 
   detectors = []
   detectors.append(
-      AnomalyDetector(
+      AnomalyDetector[float, int](
           algorithm="SAD",
           features=["x1"],
-          threshold_func=FixedThreshold(3),
+          threshold_criterion=FixedThreshold(3),
           #id="sad_x1"
       ))
   detectors.append(
-      AnomalyDetector(
+      AnomalyDetector[float, int](
           algorithm="SAD",
           features=["x2"],
-          threshold_func=FixedThreshold(2),
+          threshold_criterion=FixedThreshold(2),
           id="sad_x2"))
   detectors.append(
-      EnsembleAnomalyDetector(
+      EnsembleAnomalyDetector[float, int](
           n=3,
           algorithm="loda",
           id="ensemble-loda",
@@ -64,7 +64,7 @@ def run(argv=None, save_main_session=True):
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(
             detectors,
-            aggregation_func=AnyVote(include_history=False))
+            aggregation_strategy=AnyVote(include_history=False))
         | beam.Map(logging.info))
 
 

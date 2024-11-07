@@ -64,7 +64,7 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_criterion=FixedThreshold(3),
             id="sad_x1"))
 
     with beam.Pipeline() as p:
@@ -116,13 +116,13 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_criterion=FixedThreshold(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=FixedThreshold(2),
+            threshold_criterion=FixedThreshold(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
@@ -155,20 +155,20 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyDetector(
             algorithm="SAD",
             features=["x1"],
-            threshold_func=FixedThreshold(3),
+            threshold_criterion=FixedThreshold(3),
             id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
-            threshold_func=FixedThreshold(2),
+            threshold_criterion=FixedThreshold(2),
             id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors, aggregation_func=AnyVote()))
+          | AnomalyDetection(detectors, aggregation_strategy=AnyVote()))
 
       assert_that(
           result,

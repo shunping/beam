@@ -25,9 +25,9 @@ import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import ThresholdFunc
-from apache_beam.ml.anomaly.base import ScoreT
 from apache_beam.ml.anomaly.base import LabelT
+from apache_beam.ml.anomaly.base import ScoreT
+from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 

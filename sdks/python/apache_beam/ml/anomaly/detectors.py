@@ -17,25 +17,28 @@
 
 import dataclasses
 import logging
+from typing import Any
+from typing import Generic
 from typing import Optional
 from typing import List
 import uuid
 
-from apache_beam.ml.anomaly.base import AggregationFunc
-from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.aggregations import AverageScore
-
+from apache_beam.ml.anomaly.base import AggregationFunc
+from apache_beam.ml.anomaly.base import LabelT
+from apache_beam.ml.anomaly.base import ScoreT
+from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
 @dataclasses.dataclass(frozen=True)
-class AnomalyDetector:
+class AnomalyDetector(Generic[ScoreT, LabelT]):
   algorithm: str
-  algorithm_kwargs: Optional[dict] = None
+  algorithm_kwargs: Optional[dict[str, Any]] = None
   id: str = ""
   features: Optional[List[str]] = None
   target: Optional[str] = None
-  threshold_func: Optional[ThresholdFunc] = None
+  threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None
 
   def __post_init__(self):
     canonical_alg = self.algorithm.lower()
@@ -47,10 +50,10 @@ class AnomalyDetector:
 
 
 @dataclasses.dataclass(frozen=True)
-class EnsembleAnomalyDetector(AnomalyDetector):
+class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
   n: int = 10
-  aggregation_strategy: Optional[AggregationFunc] = AverageScore()
-  weak_learners: Optional[List[AnomalyDetector]] = None
+  aggregation_strategy: Optional[AggregationFunc[ScoreT]] = AverageScore()
+  weak_learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
 
   def __post_init__(self):
     # propagate fields to base class except for id
