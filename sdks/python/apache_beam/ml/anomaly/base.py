@@ -25,13 +25,13 @@ from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import TypeVar
+from typing import Union
 
 EPSILON = 1e-12
 
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')
 LabelT = TypeVar('LabelT')
-AggregateT = TypeVar('AggregateT')
 
 
 @dataclass(frozen=True)
@@ -41,7 +41,7 @@ class AnomalyPrediction(Generic[ScoreT, LabelT]):
   label: Optional[LabelT] = None
   threshold: Optional[ScoreT] = None
   info: str = ""
-  agg_history: Optional[List[AnomalyPrediction]] = None
+  agg_history: Optional[List[AnomalyPrediction[ScoreT, LabelT]]] = None
 
 
 @dataclass(frozen=True)
@@ -85,16 +85,18 @@ class ThresholdFunc(Generic[ScoreT, LabelT]):
     return self._threshold
 
 
-class AggregationFunc(Generic[AggregateT]):
+class AggregationFunc(Generic[ScoreT, LabelT]):
 
   def __init__(self,
-               agg_func: Callable[[Iterable[AggregateT]], AggregateT],
-               include_history=False,
-               model_override=""):
+               agg_func: Union[Callable[[Iterable[ScoreT]], ScoreT],
+                               Callable[[Iterable[LabelT]], LabelT]],
+               include_history: bool = False,
+               model_override: str = ""):
     self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = model_override
 
-  def __call__(self,
-               predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+  def __call__(
+      self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]
+  ) -> AnomalyPrediction[ScoreT, LabelT]:
     raise NotImplementedError

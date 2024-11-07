@@ -52,7 +52,7 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
 @dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
   n: int = 10
-  aggregation_strategy: Optional[AggregationFunc[ScoreT]] = AverageScore()
+  aggregation_strategy: Optional[AggregationFunc[ScoreT, Any]] = AverageScore()
   weak_learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
 
   def __post_init__(self):
