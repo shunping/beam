@@ -18,16 +18,18 @@
 import numpy as np
 
 import apache_beam as beam
-from apache_beam.ml.anomaly.base import AnomalyModel
+from apache_beam.ml.anomaly.models.base import BeamRowModel
 from apache_beam.ml.anomaly import univariate
 
 
-class LodaWeakLearner(AnomalyModel[beam.Row, float]):
+class LodaWeakLearner(BeamRowModel):
 
   def __init__(self,
                n_init=256,
                histogram_tracker_class=None,
-               histogram_tracker_kwargs=None):
+               histogram_tracker_kwargs=None,
+               **kwargs):
+    super().__init__(**kwargs)
     if histogram_tracker_class is None:
       self._hist = univariate.SimpleHistogram(window_size=256, n_bins=256)
     else:

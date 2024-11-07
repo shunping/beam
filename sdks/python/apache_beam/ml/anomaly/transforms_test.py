@@ -16,6 +16,7 @@
 #
 
 import logging
+from typing import Any
 import unittest
 
 import apache_beam as beam
@@ -27,6 +28,7 @@ from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
+from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
 
@@ -68,12 +70,12 @@ class TestAnomalyDetection(unittest.TestCase):
             threshold_criterion=FixedThreshold(3),
             id="sad_x1"))
 
-    with beam.Pipeline() as p:
+    with TestPipeline() as p:
       result = (
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors))
+          | AnomalyDetection[Any, Any, Any, Any](detectors))
       assert_that(
           result,
           equal_to([(input[0],

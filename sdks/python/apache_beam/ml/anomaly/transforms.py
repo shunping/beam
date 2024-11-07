@@ -16,6 +16,7 @@
 #
 
 import dataclasses
+from typing import Any
 from typing import Callable
 from typing import Generic
 from typing import Iterable
@@ -26,9 +27,13 @@ from typing import TypeVar
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import thresholds
+from apache_beam.ml.anomaly.base import AnomalyModel
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFunc
+from apache_beam.ml.anomaly.base import ExampleT
+from apache_beam.ml.anomaly.base import LabelT
+from apache_beam.ml.anomaly.base import ScoreT
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
@@ -36,11 +41,10 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 
 KeyT = TypeVar('KeyT')
-TempKeyT = TypeVar('TempKeyT')
 
 
-class _ScoreAndLearn(beam.DoFn):
-  DETECTOR_STATE_INDEX = ReadModifyWriteStateSpec('saved_detector', DillCoder())
+class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
+  MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
   def __init__(self, detector: AnomalyDetector):
     self._detector = detector
@@ -48,64 +52,58 @@ class _ScoreAndLearn(beam.DoFn):
     if not self._canonical_alg in KNOWN_ALGORITHMS:
       raise NotImplementedError(f"algorithm '{detector.algorithm}' not found")
 
-  def score_and_learn(self, x, y, unused_key):
+  def score_and_learn(self, data):
+    x = self._underlying.get_x(data)
     y_pred = self._underlying.score_one(x)
     self._underlying.learn_one(x)
     return y_pred
 
-  def process(
-      self,
-      element: Tuple[KeyT, Tuple[TempKeyT, beam.Row]],
-      detector_state=beam.DoFn.StateParam(DETECTOR_STATE_INDEX),
-      **kwargs) -> Iterable[Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]]:
+  def process(self,
+              element: Tuple[KeyT, Tuple[Any, ExampleT]],
+              model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
+              **kwargs) -> Iterable[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
 
     k1, (k2, data) = element
-    self._underlying = detector_state.read()  # type: ignore
+    self._underlying = model_state.read()  # type: ignore
     if self._underlying is None:
       model_class = KNOWN_ALGORITHMS[self._canonical_alg]
+      assert model_class is not None, "model {self._canonical_alg} not found"
       kwargs = self._detector.algorithm_args if self._detector.algorithm_args is not None else {}
-      self._underlying = model_class(**kwargs)  # type: ignore
-
-    # TODO: can we get rid of this conversion?
-    # TODO: handle missing fields
-    # feature selection
-    if self._detector.features is not None:
-      x = beam.Row(**{f: getattr(data, f) for f in self._detector.features})
-    else:
-      x = beam.Row(**data._asdict())
-
-    if self._detector.target is not None:
-      y = getattr(data, self._detector.target)
-    else:
-      y = None
+      kwargs.update({
+          "features": self._detector.features,
+          "target": self._detector.target
+      })
+      self._underlying: AnomalyModel[ExampleT, ScoreT] = model_class(**kwargs)
 
     yield k1, (k2,
                AnomalyResult(
                    example=data,
-                   prediction=AnomalyPrediction(
+                   prediction=AnomalyPrediction[ScoreT, LabelT](
                        model_id=self._detector.id,
-                       score=self.score_and_learn(x, y, k2))))
+                       score=self.score_and_learn(data))))
 
-    detector_state.write(self._underlying)  # type: ignore
+    model_state.write(self._underlying)  # type: ignore
 
 
 class _RunDetectors(
-    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]],
-                    beam.PCollection[Tuple[KeyT, Tuple[TempKeyT,
-                                                       AnomalyResult]]]],
-    Generic[KeyT, TempKeyT]):
+    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
+                    beam.PCollection[Tuple[KeyT,
+                                           Tuple[Any,
+                                                 AnomalyResult[ExampleT, ScoreT,
+                                                               LabelT]]]]],
+    Generic[KeyT, ExampleT, ScoreT, LabelT]):
 
   def __init__(self,
-               model_id,
-               detectors: Iterable[AnomalyDetector],
+               model_id: str,
+               detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
                aggregation_strategy: Optional[AggregationFunc] = None):
     self._label = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
 
   def expand(
-      self, input: beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, beam.Row]]]
-  ) -> beam.PCollection[Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]]:
+      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]]
+  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
     model_results = []
     for detector in self._detectors:
       if isinstance(detector, EnsembleAnomalyDetector):
@@ -121,14 +119,14 @@ class _RunDetectors(
                                    example=v[1].example,
                                    prediction=dataclasses.replace(
                                        v[1].prediction, model_id=label)))))
-            .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
+            .with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
       else:
         score_result = (
             input
             | f"Reshuffle ({detector})" >> beam.Reshuffle()
             | f"Score and learn ({detector})" >> beam.ParDo(
                 _ScoreAndLearn(detector)).with_output_types(
-                    Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
+                    Tuple[KeyT, Tuple[Any, AnomalyResult]]))
 
       if detector.threshold_criterion:
         if detector.threshold_criterion.is_stateful:
@@ -159,31 +157,33 @@ class _RunDetectors(
               AnomalyResult(
                   example=v[0].example,
                   prediction=agg([result.prediction for result in v])))))
-          .with_output_types(Tuple[KeyT, Tuple[TempKeyT, AnomalyResult]]))
+          .with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
 
     return ret
 
 
-class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
+class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
                                        beam.PCollection[Tuple[KeyT,
                                                               AnomalyResult]]],
-                       Generic[KeyT, TempKeyT]):
+                       Generic[KeyT, ExampleT, ScoreT, LabelT]):
 
-  def __init__(self,
-               detectors: Iterable[AnomalyDetector],
-               aggregation_strategy: Optional[AggregationFunc] = None) -> None:
+  def __init__(
+      self,
+      detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
+      aggregation_strategy: Optional[AggregationFunc[ScoreT, LabelT]] = None
+  ) -> None:
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
 
   def maybe_add_key(
       self, element: Tuple[KeyT,
-                           beam.Row]) -> Tuple[KeyT, Tuple[TempKeyT, beam.Row]]:
+                           ExampleT]) -> Tuple[KeyT, Tuple[Any, ExampleT]]:
     key, row = element
-    return key, (timestamp.Timestamp.now().micros, row)  # type: ignore
+    return key, (timestamp.Timestamp.now().micros, row)
 
   def expand(
       self,
-      input: beam.PCollection[Tuple[KeyT, beam.Row]],
+      input: beam.PCollection[Tuple[KeyT, ExampleT]],
   ) -> beam.PCollection[Tuple[KeyT, AnomalyResult]]:
 
     assert self._detectors is not None
@@ -194,12 +194,8 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, beam.Row]],
         | _RunDetectors("root", self._detectors, self._aggregation_strategy))
 
     remove_temp_key_func: Callable[
-        [KeyT, Tuple[TempKeyT, AnomalyResult]],
+        [KeyT, Tuple[Any, AnomalyResult[ExampleT, ScoreT, LabelT]]],
         Tuple[KeyT, AnomalyResult]] = lambda k, v: (k, v[1])
-    ret |= beam.MapTuple(remove_temp_key_func).with_input_types(
-        Tuple[KeyT,
-              Tuple[TempKeyT,
-                    AnomalyResult]]).with_output_types(Tuple[KeyT,
-                                                             AnomalyResult])
+    ret |= beam.MapTuple(remove_temp_key_func)
 
     return ret  # type: ignore

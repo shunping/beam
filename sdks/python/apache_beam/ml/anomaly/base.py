@@ -27,7 +27,6 @@ from typing import TypeVar
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')
 LabelT = TypeVar('LabelT')
-AggregateT = TypeVar('AggregateT')
 
 
 @dataclass(frozen=True)
@@ -48,6 +47,17 @@ class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
 
 class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
 
+  def __init__(self,
+               features: Optional[Iterable[str]] = None,
+               target: Optional[str] = None):
+    self._features = features
+    self._target = target
+
+  # assume example type is the same as model input type
+  @abc.abstractmethod
+  def get_x(self, data: ExampleT) -> ExampleT:
+    raise NotImplementedError
+
   @abc.abstractmethod
   def learn_one(self, x: ExampleT) -> None:
     raise NotImplementedError
@@ -58,6 +68,7 @@ class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
 
 
 class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
+
   def __init__(self, normal_label: LabelT = 0, outlier_label: LabelT = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label

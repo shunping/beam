@@ -15,29 +15,15 @@
 # limitations under the License.
 #
 
-from typing import Optional
-
-import river.anomaly
-from river.anomaly.base import AnomalyDetector as RiverModel
-
 import apache_beam as beam
-from apache_beam.ml.anomaly.models.base import BeamRowModel
+from apache_beam.ml.anomaly.base import AnomalyModel
 
-class RiverAnomalyModel(BeamRowModel):
+class BeamRowModel(AnomalyModel[beam.Row, float]):
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
-    self._river_model : Optional[RiverModel] = None
 
-  def learn_one(self, x: beam.Row) -> None:
-    self._river_model.learn_one(x.__dict__)  # type: ignore
-
-  def score_one(self, x: beam.Row) -> float:
-    return self._river_model.score_one(x.__dict__)  # type: ignore
-
-
-class LocalOutlierFactor(RiverAnomalyModel):
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-    kwargs.pop("features")
-    kwargs.pop("target")
-    self._river_model = river.anomaly.LocalOutlierFactor(**kwargs)
+  def get_x(self, data) -> beam.Row:
+    if self._features is not None:
+      return beam.Row(**{f: getattr(data, f) for f in self._features})
+    else:
+      return beam.Row(**data._asdict())
