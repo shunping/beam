@@ -135,12 +135,14 @@ class _RunDetectors(
           model_results.append(
               score_result
               | f"Run stateful threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatefulThresholdDoFn(detector.threshold_criterion)))
+                  thresholds.StatefulThresholdDoFn(
+                      detector.threshold_criterion)))
         else:
           model_results.append(
               score_result
               | f"Run stateless threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatelessThresholdDoFn(detector.threshold_criterion)))
+                  thresholds.StatelessThresholdDoFn(
+                      detector.threshold_criterion)))
       else:
         model_results.append(score_result)
 

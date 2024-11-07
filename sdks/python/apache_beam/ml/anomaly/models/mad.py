@@ -18,7 +18,7 @@
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyModel
-from apache_beam.ml.anomaly.base import EPSILON
+from apache_beam.ml.anomaly.univariate import EPSILON
 
 
 class MedianAbsoluteDeviation(AnomalyModel[beam.Row, float]):

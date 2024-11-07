@@ -27,7 +27,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-EPSILON = 1e-12
 
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')

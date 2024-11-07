@@ -20,6 +20,7 @@ import math
 
 import numpy as np
 
+EPSILON = 1e-12
 
 class BaseTracker:
   def push(self, x):
