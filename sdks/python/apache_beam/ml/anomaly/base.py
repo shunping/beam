@@ -83,6 +83,7 @@ class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
   def threshold(self) -> Optional[ScoreT]:
     raise NotImplementedError
 
+  @abc.abstractmethod
   def __call__(self, score: ScoreT) -> LabelT:
     raise NotImplementedError
 
