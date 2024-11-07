@@ -79,7 +79,7 @@ class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
                AnomalyResult(
                    example=data,
                    prediction=AnomalyPrediction[ScoreT, LabelT](
-                       model_id=self._detector.id,
+                       model_id=self._detector.model_id,
                        score=self.score_and_learn(data))))
 
     model_state.write(self._underlying)  # type: ignore
@@ -97,7 +97,7 @@ class _RunDetectors(
                model_id: Optional[str],
                detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
                aggregation_strategy: Optional[AggregationFunc] = None):
-    self._label = model_id
+    self._model_id = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
 
@@ -109,16 +109,16 @@ class _RunDetectors(
       if isinstance(detector, EnsembleAnomalyDetector):
         score_result = (
             input | _RunDetectors(
-                detector.id,
+                detector.model_id,
                 detector.learners,  # type: ignore
                 detector.aggregation_strategy)
             | f"Reset model label for ensemble ({detector})" >>
-            beam.MapTuple(lambda k, v, label=detector.id:
+            beam.MapTuple(lambda k, v, model_id=detector.model_id:
                           (k, (v[0],
                                AnomalyResult(
                                    example=v[1].example,
                                    prediction=dataclasses.replace(
-                                       v[1].prediction, model_id=label)))))
+                                       v[1].prediction, model_id=model_id)))))
             .with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
       else:
         score_result = (
@@ -144,12 +144,12 @@ class _RunDetectors(
       else:
         model_results.append(score_result)
 
-    merged = model_results | f"Flatten {self._label}" >> beam.Flatten()
+    merged = model_results | f"Flatten {self._model_id}" >> beam.Flatten()
 
     ret = merged
     if self._aggregation_strategy is not None:
       if getattr(self._aggregation_strategy, "_model_override") is None:
-        setattr(self._aggregation_strategy, "_model_override", self._label)
+        setattr(self._aggregation_strategy, "_model_override", self._model_id)
       ret = (
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0]), v[1]))

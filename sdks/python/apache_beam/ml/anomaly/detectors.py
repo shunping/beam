@@ -34,7 +34,7 @@ from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 class AnomalyDetector(Generic[ScoreT, LabelT]):
   algorithm: str
   algorithm_args: Optional[dict[str, Any]] = None
-  id: Optional[str] = None
+  model_id: Optional[str] = None
   features: Optional[List[str]] = None
   target: Optional[str] = None
   threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None
@@ -44,8 +44,8 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
     if canonical_alg not in KNOWN_ALGORITHMS:
       raise NotImplementedError(f"algorithm '{self.algorithm}' not found")
 
-    if not self.id:
-      super().__setattr__('id', f"{self.algorithm}_{uuid.uuid4().hex[:6]}")
+    if not self.model_id:
+      super().__setattr__('model_id', f"{self.algorithm}_{uuid.uuid4().hex[:6]}")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -57,7 +57,7 @@ class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
   def __post_init__(self):
     # propagate fields to base class except for id
     field_names = tuple(
-        f.name for f in dataclasses.fields(super()) if f.name != "id")
+        f.name for f in dataclasses.fields(super()) if f.name != "model_id")
     kwargs = {field: getattr(self, field) for field in field_names}
 
     # set a field (learners) in a frozen dataclass

@@ -38,8 +38,9 @@ class TestAnomalyDetector(unittest.TestCase):
   def test_known_detector(self):
     d1 = detectors.AnomalyDetector(self.my_alg)
     self.assertEqual(d1.algorithm, self.my_alg)
-    self.assertTrue(d1.id.startswith(self.my_alg))
-    self.assertEqual(len(d1.id), len(self.my_alg) + 7)
+    assert d1.model_id is not None
+    self.assertTrue(d1.model_id.startswith(self.my_alg))
+    self.assertEqual(len(d1.model_id), len(self.my_alg) + 7)
 
     # model will not be initialized until PTransform expansion
     self.mocked_model_class.assert_not_called()
@@ -47,9 +48,9 @@ class TestAnomalyDetector(unittest.TestCase):
   def test_known_detector_with_weird_case_alg(self):
     my_alg_with_weird_case = "Newly-ADDED-aLg"
     my_id = "new_id"
-    d2 = detectors.AnomalyDetector(my_alg_with_weird_case, id=my_id)
+    d2 = detectors.AnomalyDetector(my_alg_with_weird_case, model_id=my_id)
     self.assertEqual(d2.algorithm, my_alg_with_weird_case)
-    self.assertEqual(d2.id, my_id)
+    self.assertEqual(d2.model_id, my_id)
 
     # model will not be initialized until PTransform expansion
     self.mocked_model_class.assert_not_called()
@@ -68,7 +69,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     field_names = tuple(
         f.name for f in dataclasses.fields(detectors.AnomalyDetector))
     for f in field_names:
-      if f == "id":
+      if f == "model_id":
         continue
       if getattr(d1, f) != getattr(d2, f):
         return False

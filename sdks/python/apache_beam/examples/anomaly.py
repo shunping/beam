@@ -48,11 +48,11 @@ def run(argv=None, save_main_session=True):
       algorithm="SAD",
       features=["x2"],
       threshold_criterion=FixedThreshold(2),
-      id="sad_x2"))
+      model_id="sad_x2"))
   detectors.append(EnsembleAnomalyDetector[float, int](
       n=3,
       algorithm="loda",
-      id="ensemble-loda",
+      model_id="ensemble-loda",
       features=["x1", "x2"],
       aggregation_strategy=AverageScore()))
   # The pipeline will be run on exiting the with block.

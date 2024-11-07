@@ -66,7 +66,7 @@ def run():
     detectors.append(
         anomaly.AnomalyDetector(
             algorithm="SAD",
-            id="SAD_2",
+            model_id="SAD_2",
             algorithm_args={"window_size": 50, "sub_stat": "median"},
             features=["feat_2"],
             target="label"))
@@ -89,7 +89,7 @@ def run():
         anomaly.EnsembleAnomalyDetector(
             n=3,
             algorithm="loda",
-            id="ensemble-loda",
+            model_id="ensemble-loda",
             features=["feat_1", "feat_2"],
             target="label",
             aggregation_strategy=anomaly.AverageScore()
@@ -99,7 +99,7 @@ def run():
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
-            aggregation_strategy=anomaly.AnyVote(model_override="final"),
+            #aggregation_strategy=anomaly.AnyVote(model_override="final"),
         ))
 
     _ = results | beam.Map(debug_print)

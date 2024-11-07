@@ -68,7 +68,7 @@ class TestAnomalyDetection(unittest.TestCase):
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
-            id="sad_x1"))
+            model_id="sad_x1"))
 
     with TestPipeline() as p:
       result = (
@@ -120,13 +120,13 @@ class TestAnomalyDetection(unittest.TestCase):
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
-            id="sad_x1"))
+            model_id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
-            id="sad_x2"))
+            model_id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
@@ -159,13 +159,13 @@ class TestAnomalyDetection(unittest.TestCase):
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
-            id="sad_x1"))
+            model_id="sad_x1"))
     detectors.append(
         AnomalyDetector(
             algorithm="SAD",
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
-            id="sad_x2"))
+            model_id="sad_x2"))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
