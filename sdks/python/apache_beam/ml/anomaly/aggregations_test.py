@@ -97,6 +97,7 @@ class AverageScoreTest(unittest.TestCase):
 
     self.assertEqual(avg([]), AnomalyPrediction())
 
+    logging.error(avg([AnomalyPrediction(score=1)]))
     self.assertEqual(avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
 
     self.assertEqual(

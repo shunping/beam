@@ -34,7 +34,7 @@ from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 @dataclasses.dataclass(frozen=True)
 class AnomalyDetector(Generic[ScoreT, LabelT]):
   algorithm: str
-  algorithm_kwargs: Optional[dict[str, Any]] = None
+  algorithm_args: Optional[dict[str, Any]] = None
   id: str = ""
   features: Optional[List[str]] = None
   target: Optional[str] = None
@@ -52,7 +52,7 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
 @dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
   n: int = 10
-  aggregation_strategy: Optional[AggregationFunc[ScoreT, Any]] = AverageScore()
+  aggregation_strategy: Optional[AggregationFunc[ScoreT, Any]] = None
   weak_learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
 
   def __post_init__(self):

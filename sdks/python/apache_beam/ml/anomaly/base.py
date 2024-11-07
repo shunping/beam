@@ -24,13 +24,14 @@ from typing import Generic
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Protocol
 from typing import TypeVar
 from typing import Union
-
 
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')
 LabelT = TypeVar('LabelT')
+AggregateT = TypeVar('AggregateT')
 
 
 @dataclass(frozen=True)
@@ -72,9 +73,6 @@ class ThresholdFunc(Generic[ScoreT, LabelT]):
         1) if outlier_label is None else outlier_label  # type: ignore
     self._threshold = None
 
-  def __call__(self, score: ScoreT) -> LabelT:
-    raise NotImplementedError
-
   @property
   def is_stateful(self) -> bool:
     raise NotImplementedError
@@ -83,17 +81,11 @@ class ThresholdFunc(Generic[ScoreT, LabelT]):
   def threshold(self) -> Optional[ScoreT]:
     return self._threshold
 
+  def __call__(self, score: ScoreT) -> LabelT:
+    raise NotImplementedError
 
-class AggregationFunc(Generic[ScoreT, LabelT]):
 
-  def __init__(self,
-               agg_func: Union[Callable[[Iterable[ScoreT]], ScoreT],
-                               Callable[[Iterable[LabelT]], LabelT]],
-               include_history: bool = False,
-               model_override: str = ""):
-    self._agg_func = agg_func
-    self._include_history = include_history
-    self._model_override = model_override
+class AggregationFunc(Protocol[ScoreT, LabelT]):
 
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]

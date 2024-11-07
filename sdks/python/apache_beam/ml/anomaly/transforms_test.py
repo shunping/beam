@@ -19,6 +19,7 @@ import logging
 import unittest
 
 import apache_beam as beam
+from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
@@ -194,7 +195,7 @@ class TestAnomalyDetection(unittest.TestCase):
     detectors = []
     detectors.append(
         EnsembleAnomalyDetector(
-            algorithm="loda", algorithm_kwargs={"n_init": 2}, n=3))
+            algorithm="loda", algorithm_args={"n_init": 2}, n=3, aggregation_strategy=AverageScore()))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)

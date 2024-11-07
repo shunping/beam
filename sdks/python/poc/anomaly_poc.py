@@ -67,19 +67,19 @@ def run():
         anomaly.AnomalyDetector(
             algorithm="SAD",
             id="SAD_2",
-            algorithm_kwargs={"window_size": 50, "sub_stat": "median"},
+            algorithm_args={"window_size": 50, "sub_stat": "median"},
             features=["feat_2"],
             target="label"))
     detectors.append(
         anomaly.AnomalyDetector(
             algorithm="MAD",
-            algorithm_kwargs={"window_size": 50},
+            algorithm_args={"window_size": 50},
             features=["feat_1"],
             target="label"))
     detectors.append(
         anomaly.AnomalyDetector(
             algorithm="MAD",
-            algorithm_kwargs={"window_size": 50},
+            algorithm_args={"window_size": 50},
             features=["feat_2"],
             target="label"))
     # detectors.append(
@@ -92,13 +92,14 @@ def run():
             # id="ensemble-loda",
             features=["feat_1", "feat_2"],
             target="label",
+            aggregation_strategy=anomaly.AverageScore()
             # threshold_func=anomaly.QuantileThreshold(0.95),
         ))
     results = (
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
-            aggregation_strategy=anomaly.AnyVote(),
+            # aggregation_strategy=anomaly.AnyVote(),
         ))
 
     _ = results | beam.Map(debug_print)

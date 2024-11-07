@@ -2,6 +2,7 @@ import argparse
 import logging
 
 import apache_beam as beam
+from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
@@ -55,6 +56,7 @@ def run(argv=None, save_main_session=True):
           algorithm="loda",
           id="ensemble-loda",
           features=["x1", "x2"],
+          aggregation_strategy=AverageScore()
       ))
   # The pipeline will be run on exiting the with block.
   with beam.Pipeline(options=pipeline_options) as p:

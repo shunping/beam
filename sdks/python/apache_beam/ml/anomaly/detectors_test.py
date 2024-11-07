@@ -93,7 +93,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
 
   def test_known_detector_with_n_and_kwargs(self):
     d = detectors.EnsembleAnomalyDetector(
-        self.my_alg, n=5, algorithm_kwargs={"window_size": 50})
+        self.my_alg, n=5, algorithm_args={"window_size": 50})
     self.assertEqual(d.algorithm, self.my_alg)
     self.assertEqual(len(d.weak_learners), 5)  # type: ignore
     for i in range(5):
@@ -101,18 +101,18 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
           TestEnsembleAnomalyDetector.are_detectors_equal_ignoring_id(
               d.weak_learners[i],  # type: ignore
               detectors.AnomalyDetector(
-                  self.my_alg, algorithm_kwargs={"window_size": 50})))
+                  self.my_alg, algorithm_args={"window_size": 50})))
 
   def test_known_detector_with_custom_weak_learners(self):
     sub_d1 = detectors.AnomalyDetector(
-        self.my_alg, algorithm_kwargs={"window_size": 10})
+        self.my_alg, algorithm_args={"window_size": 10})
     sub_d2 = detectors.AnomalyDetector(
-        self.my_alg, algorithm_kwargs={"window_size": 20})
+        self.my_alg, algorithm_args={"window_size": 20})
 
     d = detectors.EnsembleAnomalyDetector(
         self.my_alg,
         n=5,
-        algorithm_kwargs={"window_size": 50},
+        algorithm_args={"window_size": 50},
         weak_learners=[sub_d1, sub_d2])
 
     self.assertEqual(d.algorithm, self.my_alg)

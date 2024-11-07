@@ -63,7 +63,7 @@ class _ScoreAndLearn(beam.DoFn):
     self._underlying = detector_state.read()  # type: ignore
     if self._underlying is None:
       model_class = KNOWN_ALGORITHMS[self._canonical_alg]
-      kwargs = self._detector.algorithm_kwargs if self._detector.algorithm_kwargs is not None else {}
+      kwargs = self._detector.algorithm_args if self._detector.algorithm_args is not None else {}
       self._underlying = model_class(**kwargs)  # type: ignore
 
     # TODO: can we get rid of this conversion?
