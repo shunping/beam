@@ -19,14 +19,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable
 from typing import Generic
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Protocol
 from typing import TypeVar
-from typing import Union
 
 ExampleT = TypeVar('ExampleT')
 ScoreT = TypeVar('ScoreT')
@@ -61,32 +58,28 @@ class AnomalyModel(ABC, Generic[ExampleT, ScoreT]):
     raise NotImplementedError
 
 
-class ThresholdFunc(Generic[ScoreT, LabelT]):
-
-  def __init__(self,
-               normal_label=None,
-               outlier_label=None,
-               label_class: type[LabelT] = int):
-    self._normal_label = label_class(
-        0) if normal_label is None else normal_label  # type: ignore
-    self._outlier_label = label_class(
-        1) if outlier_label is None else outlier_label  # type: ignore
-    self._threshold = None
+class ThresholdFunc(ABC, Generic[ScoreT, LabelT]):
+  def __init__(self, normal_label: LabelT = 0, outlier_label: LabelT = 1):
+    self._normal_label = normal_label
+    self._outlier_label = outlier_label
 
   @property
+  @abstractmethod
   def is_stateful(self) -> bool:
     raise NotImplementedError
 
   @property
+  @abstractmethod
   def threshold(self) -> Optional[ScoreT]:
-    return self._threshold
+    raise NotImplementedError
 
   def __call__(self, score: ScoreT) -> LabelT:
     raise NotImplementedError
 
 
-class AggregationFunc(Protocol[ScoreT, LabelT]):
+class AggregationFunc(ABC, Generic[ScoreT, LabelT]):
 
+  @abstractmethod
   def __call__(
       self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]
   ) -> AnomalyPrediction[ScoreT, LabelT]:

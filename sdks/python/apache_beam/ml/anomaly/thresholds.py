@@ -32,6 +32,7 @@ from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
+
   def __init__(self, threshold_func: ThresholdFunc):
     self._threshold_func = threshold_func
 
@@ -42,7 +43,7 @@ class BaseThresholdDoFn(beam.DoFn):
         prediction=dataclasses.replace(
             result.prediction,
             label=label,
-            threshold=self._threshold_func._threshold))
+            threshold=self._threshold_func.threshold))
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
@@ -83,13 +84,19 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
 class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
 
-  def __init__(self, threshold: ScoreT, **kwargs):
+  def __init__(self,
+               threshold: ScoreT,
+               **kwargs):
     super().__init__(**kwargs)
     self._threshold = threshold
 
   @property
   def is_stateful(self) -> bool:
     return False
+
+  @property
+  def threshold(self) -> ScoreT:
+    return self._threshold
 
   def __call__(self, score: ScoreT) -> LabelT:
     if score is None or score < self._threshold:  # type: ignore
@@ -100,7 +107,9 @@ class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
 
 class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
 
-  def __init__(self, quantile: float, **kwargs):
+  def __init__(self,
+               quantile: float,
+               **kwargs):
     super().__init__(**kwargs)
     self._quantile = quantile
     self._tracker_class = univariate.SimpleQuantile
@@ -111,11 +120,14 @@ class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
   def is_stateful(self) -> bool:
     return True
 
+  @property
+  def threshold(self) -> ScoreT:
+    return self._tracker.get(self._quantile)
+
   def __call__(self, score: ScoreT) -> LabelT:
     self._tracker.push(score)
-    self._threshold = self._tracker.get(self._quantile)
 
-    if score is None or score < self._threshold:  # type: ignore
+    if score is None or score < self.threshold:  # type: ignore
       return self._normal_label
 
     return self._outlier_label
