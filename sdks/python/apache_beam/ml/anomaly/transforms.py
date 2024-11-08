@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-import dataclasses
+import logging
 from typing import Any
 from typing import Callable
 from typing import Generic
@@ -108,19 +108,14 @@ class _RunDetectors(
     model_results = []
     for detector in self._detectors:
       if isinstance(detector, EnsembleAnomalyDetector):
-        score_result = (
-            input | _RunDetectors(
-                detector.model_id,
-                detector.learners,  # type: ignore
-                detector.aggregation_strategy)
-            | f"Reset model label for ensemble ({detector})" >>
-            beam.MapTuple(lambda k, v, model_id=detector.model_id:
-                          (k, (v[0],
-                               AnomalyResult(
-                                   example=v[1].example,
-                                   prediction=dataclasses.replace(
-                                       v[1].prediction, model_id=model_id)))))
-            .with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
+        if detector.learners:
+          score_result = (
+              input | f"Run detectors under {detector}" >> _RunDetectors(
+                  detector.model_id,
+                  detector.learners,
+                  detector.aggregation_strategy))
+        else:
+          raise ValueError("No learners found at {self._model_id}")
       else:
         score_result = (
             input
@@ -149,6 +144,8 @@ class _RunDetectors(
 
     ret = merged
     if self._aggregation_strategy is not None:
+      # if no model_override is set in the aggregation function, use
+      # model id locally in the instance
       if getattr(self._aggregation_strategy, "_model_override") is None:
         setattr(self._aggregation_strategy, "_model_override", self._model_id)
       ret = (
@@ -177,10 +174,12 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
   def __init__(
       self,
       detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
-      aggregation_strategy: Optional[AggregationFunc[ScoreT, LabelT]] = None
+      aggregation_strategy: Optional[AggregationFunc[ScoreT, LabelT]] = None,
+      root_model_id: Optional[str] = None,
   ) -> None:
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
+    self._root_model_id = root_model_id
 
   def maybe_add_key(
       self, element: Tuple[KeyT,
@@ -198,7 +197,7 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
     ret = (
         input
         | "Add temp key" >> beam.Map(self.maybe_add_key)
-        | _RunDetectors(None, self._detectors, self._aggregation_strategy))
+        | _RunDetectors(self._root_model_id, self._detectors, self._aggregation_strategy))
 
     remove_temp_key_func: Callable[
         [KeyT, Tuple[Any, AnomalyResult[ExampleT, ScoreT, LabelT]]],

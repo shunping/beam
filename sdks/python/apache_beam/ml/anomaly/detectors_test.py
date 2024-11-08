@@ -89,6 +89,9 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
           TestEnsembleAnomalyDetector.are_detectors_equal_ignoring_id(
               d.learners[i],  # type: ignore
               detectors.AnomalyDetector(self.my_alg)))
+    assert d.model_id is not None
+    self.assertTrue(d.model_id.startswith("ensemble_" + self.my_alg))
+    self.assertEqual(len(d.model_id), len(self.my_alg) + 16)
 
   def test_known_detector_with_n_and_kwargs(self):
     d = detectors.EnsembleAnomalyDetector(

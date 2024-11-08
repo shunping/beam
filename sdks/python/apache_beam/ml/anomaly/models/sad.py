@@ -19,13 +19,17 @@ import math
 
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
-from apache_beam.ml.anomaly.models.base import BeamRowModel
+from apache_beam.ml.anomaly.models.base import WithBeamRowInput
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-class StandardAbsoluteDeviation(BeamRowModel):
-  def __init__(
-      self, sub_stat="mean", window_size=10, sub_stat_tracker=None, **kwargs):
+class StandardAbsoluteDeviation(WithBeamRowInput):
+
+  def __init__(self,
+               sub_stat="mean",
+               window_size=10,
+               sub_stat_tracker=None,
+               **kwargs):
     super().__init__(**kwargs)
     if sub_stat_tracker is None:
       if sub_stat == 'mean':

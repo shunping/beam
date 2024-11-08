@@ -18,11 +18,11 @@
 import numpy as np
 
 import apache_beam as beam
-from apache_beam.ml.anomaly.models.base import BeamRowModel
+from apache_beam.ml.anomaly.models.base import WithBeamRowInput
 from apache_beam.ml.anomaly import univariate
 
 
-class LodaWeakLearner(BeamRowModel):
+class LodaWeakLearner(WithBeamRowInput):
   def __init__(
       self,
       n_init=256,
@@ -72,4 +72,4 @@ class LodaWeakLearner(BeamRowModel):
       inds = np.searchsorted(limits[:256 - 1], projected_data, side='left')
       y_pred = -np.log(histogram[inds])
 
-    return y_pred
+    return float(y_pred)

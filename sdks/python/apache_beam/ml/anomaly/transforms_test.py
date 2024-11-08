@@ -19,6 +19,8 @@ import logging
 from typing import Any
 import unittest
 
+from parameterized import parameterized
+
 import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
@@ -34,6 +36,7 @@ from apache_beam.testing.util import equal_to
 
 
 class TestAnomalyDetection(unittest.TestCase):
+
   def setUp(self):
     self._input = [
         (1, beam.Row(x1=1, x2=4)),
@@ -71,14 +74,12 @@ class TestAnomalyDetection(unittest.TestCase):
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection[Any, Any, Any, Any](detectors))
+          | AnomalyDetection(detectors))
       assert_that(
           result,
-          equal_to([
-              (input[0], AnomalyResult(example=input[1], prediction=decision))
-              for input,
-              decision in zip(self._input, sad_x1_expected)
-          ]))
+          equal_to([(input[0],
+                     AnomalyResult(example=input[1], prediction=decision))
+                    for input, decision in zip(self._input, sad_x1_expected)]))
 
   def test_multiple_detectors_without_aggregation(self):
     sad_x1_expected = [
@@ -129,11 +130,9 @@ class TestAnomalyDetection(unittest.TestCase):
           result,
           equal_to(
               [(input[0], AnomalyResult(example=input[1], prediction=decision))
-               for input,
-               decision in zip(self._input, sad_x1_expected)] +
+               for input, decision in zip(self._input, sad_x1_expected)] +
               [(input[0], AnomalyResult(example=input[1], prediction=decision))
-               for input,
-               decision in zip(self._input, sad_x2_expected)]))
+               for input, decision in zip(self._input, sad_x2_expected)]))
 
   def test_multiple_detectors_with_aggregation(self):
     aggregated = [
@@ -168,20 +167,19 @@ class TestAnomalyDetection(unittest.TestCase):
 
       assert_that(
           result,
-          equal_to([(
-              input[0], AnomalyResult(example=input[1], prediction=prediction))
-                    for input,
-                    prediction in zip(self._input, aggregated)]))
+          equal_to([(input[0],
+                     AnomalyResult(example=input[1], prediction=prediction))
+                    for input, prediction in zip(self._input, aggregated)]))
 
   def test_one_ensemble_detector(self):
     loda = [
-        AnomalyPrediction(score=0),
-        AnomalyPrediction(score=0),
-        AnomalyPrediction(score=0),
-        AnomalyPrediction(score=19.113827924639978),
-        AnomalyPrediction(score=0.63651416837948),
-        AnomalyPrediction(score=10.596634733159407),
-        AnomalyPrediction(score=10.087370092015854),
+        AnomalyPrediction(model_id="ensemble_loda", score=0),
+        AnomalyPrediction(model_id="ensemble_loda", score=0),
+        AnomalyPrediction(model_id="ensemble_loda", score=0),
+        AnomalyPrediction(model_id="ensemble_loda", score=19.113827924639978),
+        AnomalyPrediction(model_id="ensemble_loda", score=0.63651416837948),
+        AnomalyPrediction(model_id="ensemble_loda", score=10.596634733159407),
+        AnomalyPrediction(model_id="ensemble_loda", score=10.087370092015854),
     ]
 
     # fix a random seed since loda uses random projections
@@ -191,6 +189,7 @@ class TestAnomalyDetection(unittest.TestCase):
     detectors = []
     detectors.append(
         EnsembleAnomalyDetector(
+            model_id="ensemble_loda",
             algorithm="loda",
             algorithm_args={"n_init": 2},
             n=3,
@@ -204,11 +203,121 @@ class TestAnomalyDetection(unittest.TestCase):
 
       assert_that(
           result,
-          equal_to([
-              (input[0], AnomalyResult(example=input[1], prediction=decision))
-              for input,
-              decision in zip(self._input, loda)
-          ]))
+          equal_to([(input[0],
+                     AnomalyResult(example=input[1], prediction=decision))
+                    for input, decision in zip(self._input, loda)]))
+
+
+class TestAnomalyDetectionModelId(unittest.TestCase):
+
+  def setUp(self):
+    self._input = [(1, beam.Row(x1=1, x2=4))]
+
+  @parameterized.expand([[True, True, None], [True, True, "root"],
+                         [True, False, None], [True, False, "root"],
+                         [False, True, None], [False, True, "root"],
+                         [False, False, None], [False, False, "root"]])
+  def test_model_id(self, use_threshold, use_aggregation, root_model_id):
+    if use_threshold:
+      threshold_func = FixedThreshold(3.0)
+    else:
+      threshold_func = None
+
+    if use_aggregation:
+      if use_threshold:
+        aggregation_func = AnyVote()
+      else:
+        aggregation_func = AverageScore()
+    else:
+      aggregation_func = None
+
+    detectors = []
+    detectors.append(
+        AnomalyDetector(
+            algorithm="SAD",
+            features=["x1"],
+            threshold_criterion=threshold_func))
+    detectors.append(
+        AnomalyDetector(
+            model_id="sad_x2",
+            algorithm="SAD",
+            features=["x2"],
+            threshold_criterion=threshold_func))
+    detectors.append(
+        EnsembleAnomalyDetector(
+            algorithm="loda",
+            features=["x1", "x2"],
+            aggregation_strategy=AverageScore(),
+            threshold_criterion=threshold_func))
+    detectors.append(
+        EnsembleAnomalyDetector(
+            model_id="ensemble_2",
+            algorithm="loda",
+            features=["x1", "x2"],
+            aggregation_strategy=AverageScore(),
+            threshold_criterion=threshold_func))
+
+    model_id_1 = detectors[0].model_id
+    self.assertTrue(model_id_1.startswith("SAD_"))
+
+    model_id_2 = detectors[1].model_id
+    self.assertEqual(model_id_2, "sad_x2")
+
+    model_id_3 = detectors[2].model_id
+    self.assertTrue(model_id_3.startswith("ensemble_loda_"))
+
+    model_id_4 = detectors[3].model_id
+    self.assertEqual(model_id_4, "ensemble_2")
+
+    if use_aggregation:
+      # root_model_id is only used in aggregation
+      if use_threshold:
+        predictions = [
+            AnomalyPrediction(model_id=root_model_id, label=0),
+        ]
+      else:
+        predictions = [
+            AnomalyPrediction(model_id=root_model_id, score=0),
+        ]
+    else:
+      if use_threshold:
+        predictions = [
+            AnomalyPrediction(
+                model_id=model_id_1, score=0, label=0, threshold=3),
+            AnomalyPrediction(
+                model_id=model_id_2, score=0, label=0, threshold=3),
+            AnomalyPrediction(
+                model_id=model_id_3, score=0, label=0, threshold=3),
+            AnomalyPrediction(
+                model_id=model_id_4, score=0, label=0, threshold=3),
+        ]
+      else:
+        predictions = [
+            AnomalyPrediction(model_id=model_id_1, score=0),
+            AnomalyPrediction(model_id=model_id_2, score=0),
+            AnomalyPrediction(model_id=model_id_3, score=0),
+            AnomalyPrediction(model_id=model_id_4, score=0),
+        ]
+
+    with beam.Pipeline() as p:
+      result = (
+          p | beam.Create(self._input)
+          # TODO: get rid of this conversion between BeamSchema to beam.Row.
+          | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
+          | AnomalyDetection(
+              detectors,
+              aggregation_strategy=aggregation_func,
+              root_model_id=root_model_id))
+
+      _ = result | beam.Map(print)
+
+      assert_that(
+          result,
+          equal_to([(input[0],
+                     AnomalyResult(example=input[1], prediction=decision))
+                    for input, decision in zip(
+                        self._input + self._input + self._input + self._input,
+                        predictions)]))
 
 
 if __name__ == '__main__':

@@ -89,7 +89,6 @@ def run():
         anomaly.EnsembleAnomalyDetector(
             n=3,
             algorithm="loda",
-            model_id="ensemble-loda",
             features=["feat_1", "feat_2"],
             target="label",
             aggregation_strategy=anomaly.AverageScore()

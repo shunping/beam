@@ -17,11 +17,11 @@
 
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
-from apache_beam.ml.anomaly.models.base import BeamRowModel
+from apache_beam.ml.anomaly.models.base import WithBeamRowInput
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-class MedianAbsoluteDeviation(BeamRowModel):
+class MedianAbsoluteDeviation(WithBeamRowInput):
   def __init__(self, window_size=10, scale_factor=0.67449, **kwargs):
     super().__init__(**kwargs)
     self._median_tracker = univariate.SimpleMedianTracker(window_size)

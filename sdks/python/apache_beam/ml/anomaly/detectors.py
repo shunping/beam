@@ -45,7 +45,7 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
       raise NotImplementedError(f"algorithm '{self.algorithm}' not found")
 
     if not self.model_id:
-      super().__setattr__(
+      object.__setattr__(self,
           'model_id', f"{self.algorithm}_{uuid.uuid4().hex[:6]}")
 
 
@@ -75,3 +75,7 @@ class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
             "parameter n will be overwritten with the number of "
             "weak learners provided to the instantiation.")
         super().__setattr__('n', len(self.learners))
+
+    if not self.model_id:
+      object.__setattr__(self,
+          'model_id', f"ensemble_{self.algorithm}_{uuid.uuid4().hex[:6]}")
