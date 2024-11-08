@@ -38,8 +38,7 @@ class TestAnomalyDetector(unittest.TestCase):
     d1 = detectors.AnomalyDetector(self.my_alg)
     self.assertEqual(d1.algorithm, self.my_alg)
     assert d1.model_id is not None
-    self.assertTrue(d1.model_id.startswith(self.my_alg))
-    self.assertEqual(len(d1.model_id), len(self.my_alg) + 7)
+    self.assertEqual(d1.model_id, d1.algorithm)
 
     # model will not be initialized until PTransform expansion
     self.mocked_model_class.assert_not_called()
@@ -90,8 +89,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
               d.learners[i],  # type: ignore
               detectors.AnomalyDetector(self.my_alg)))
     assert d.model_id is not None
-    self.assertTrue(d.model_id.startswith("ensemble_" + self.my_alg))
-    self.assertEqual(len(d.model_id), len(self.my_alg) + 16)
+    self.assertEqual(d.model_id, "ensemble")
 
   def test_known_detector_with_n_and_kwargs(self):
     d = detectors.EnsembleAnomalyDetector(

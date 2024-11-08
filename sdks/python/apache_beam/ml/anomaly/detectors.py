@@ -21,7 +21,6 @@ from typing import Any
 from typing import Generic
 from typing import Optional
 from typing import List
-import uuid
 
 from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.base import LabelT
@@ -42,11 +41,10 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
   def __post_init__(self):
     canonical_alg = self.algorithm.lower()
     if canonical_alg not in KNOWN_ALGORITHMS:
-      raise NotImplementedError(f"algorithm '{self.algorithm}' not found")
+      raise NotImplementedError(f"Algorithm '{self.algorithm}' not found")
 
     if not self.model_id:
-      object.__setattr__(self,
-          'model_id', f"{self.algorithm}_{uuid.uuid4().hex[:6]}")
+      object.__setattr__(self, 'model_id', self.algorithm)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,15 +65,12 @@ class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
       for _ in range(self.n):
         self.learners.append(AnomalyDetector(**kwargs))  # type: ignore
     else:
-      logging.warning(
-          "setting weak_learners will override all other arguments "
-          "except aggregation_strategy (if set).")
+      logging.warning("Setting weak_learners will override all other arguments "
+                      "except aggregation_strategy (if set).")
       if self.n != len(self.learners):
-        logging.warning(
-            "parameter n will be overwritten with the number of "
-            "weak learners provided to the instantiation.")
+        logging.warning("Parameter n will be overwritten with the number of "
+                        "weak learners provided to the instantiation.")
         super().__setattr__('n', len(self.learners))
 
     if not self.model_id:
-      object.__setattr__(self,
-          'model_id', f"ensemble_{self.algorithm}_{uuid.uuid4().hex[:6]}")
+      object.__setattr__(self, 'model_id', "ensemble")

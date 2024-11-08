@@ -172,13 +172,13 @@ class TestAnomalyDetection(unittest.TestCase):
 
   def test_one_ensemble_detector(self):
     loda = [
-        AnomalyPrediction(model_id="ensemble_loda", score=0),
-        AnomalyPrediction(model_id="ensemble_loda", score=0),
-        AnomalyPrediction(model_id="ensemble_loda", score=0),
-        AnomalyPrediction(model_id="ensemble_loda", score=19.113827924639978),
-        AnomalyPrediction(model_id="ensemble_loda", score=0.63651416837948),
-        AnomalyPrediction(model_id="ensemble_loda", score=10.596634733159407),
-        AnomalyPrediction(model_id="ensemble_loda", score=10.087370092015854),
+        AnomalyPrediction(model_id="ensemble", score=0),
+        AnomalyPrediction(model_id="ensemble", score=0),
+        AnomalyPrediction(model_id="ensemble", score=0),
+        AnomalyPrediction(model_id="ensemble", score=19.113827924639978),
+        AnomalyPrediction(model_id="ensemble", score=0.63651416837948),
+        AnomalyPrediction(model_id="ensemble", score=10.596634733159407),
+        AnomalyPrediction(model_id="ensemble", score=10.087370092015854),
     ]
 
     # fix a random seed since loda uses random projections
@@ -188,7 +188,6 @@ class TestAnomalyDetection(unittest.TestCase):
     detectors = []
     detectors.append(
         EnsembleAnomalyDetector(
-            model_id="ensemble_loda",
             algorithm="loda",
             algorithm_args={"n_init": 2},
             n=3,
@@ -213,10 +212,10 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
     self._input = [(1, beam.Row(x1=1, x2=4))]
 
   @parameterized.expand([
-                         #[True, True, None], [True, True, "root"],
-                         [True, False, None], #[True, False, "root"],
-                         #[False, True, None], [False, True, "root"],
-                         #[False, False, None], [False, False, "root"]
+                         [True, True, None], [True, True, "new_root"],
+                         [True, False, None], [True, False, "new_root"],
+                         [False, True, None], [False, True, "new_root"],
+                         [False, False, None], [False, False, "new_root"]
                          ])
   def test_model_id(self, use_threshold, use_aggregation, root_model_id):
     if use_threshold:
@@ -259,13 +258,13 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
             threshold_criterion=threshold_func))
 
     model_id_1 = detectors[0].model_id
-    self.assertTrue(model_id_1.startswith("SAD_"))
+    self.assertEqual(model_id_1, "SAD")
 
     model_id_2 = detectors[1].model_id
     self.assertEqual(model_id_2, "sad_x2")
 
     model_id_3 = detectors[2].model_id
-    self.assertTrue(model_id_3.startswith("ensemble_loda_"))
+    self.assertEqual(model_id_3, "ensemble")
 
     model_id_4 = detectors[3].model_id
     self.assertEqual(model_id_4, "ensemble_2")
