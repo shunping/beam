@@ -16,7 +16,6 @@
 #
 
 import logging
-from typing import Any
 import unittest
 
 from parameterized import parameterized

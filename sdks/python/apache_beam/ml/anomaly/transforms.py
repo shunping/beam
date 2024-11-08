@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import logging
 from typing import Any
 from typing import Callable
 from typing import Generic
