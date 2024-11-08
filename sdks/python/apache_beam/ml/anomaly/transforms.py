@@ -30,6 +30,7 @@ from apache_beam.ml.anomaly.base import AnomalyModel
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFunc
+from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.base import ExampleT
 from apache_beam.ml.anomaly.base import LabelT
 from apache_beam.ml.anomaly.base import ScoreT
@@ -84,6 +85,66 @@ class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
     model_state.write(self._underlying)  # type: ignore
 
 
+class _RunThresholdCriterion(
+    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
+                    beam.PCollection[Tuple[KeyT,
+                                           Tuple[Any,
+                                                 AnomalyResult[ExampleT, ScoreT,
+                                                               LabelT]]]]],
+    Generic[KeyT, ExampleT, ScoreT, LabelT]):
+
+  def __init__(self, model_id, threshold_criterion):
+    self._model_id = model_id
+    self._threshold_criterion = threshold_criterion
+
+  def expand(
+      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]
+  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+    if self._threshold_criterion:
+      if self._threshold_criterion.is_stateful:
+        postprocess_result = (
+            input
+            |
+            f"Run stateful threshold function ({self._model_id})" >> beam.ParDo(
+                thresholds.StatefulThresholdDoFn(self._threshold_criterion)))
+      else:
+        postprocess_result = (
+            input
+            | f"Run stateless threshold function ({self._model_id})" >>
+            beam.ParDo(
+                thresholds.StatelessThresholdDoFn(self._threshold_criterion)))
+    else:
+      postprocess_result: Any = input
+
+    return postprocess_result
+
+
+class _RunOneDetector(
+    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
+                    beam.PCollection[Tuple[KeyT,
+                                           Tuple[Any,
+                                                 AnomalyResult[ExampleT, ScoreT,
+                                                               LabelT]]]]],
+    Generic[KeyT, ExampleT, ScoreT, LabelT]):
+
+  def __init__(self, detector):
+    self._detector = detector
+
+  def expand(
+      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]]
+  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+    result : Any = (
+        input
+        | f"Reshuffle ({self._detector})" >> beam.Reshuffle()
+        | f"Score and learn ({self._detector})" >> beam.ParDo(
+            _ScoreAndLearn(self._detector)).with_output_types(
+                Tuple[KeyT, Tuple[Any, AnomalyResult]])
+        | f"Run Threshold ({self._detector})" >> _RunThresholdCriterion(
+            self._detector.model_id, self._detector.threshold_criterion))
+
+    return result
+
+
 class _RunDetectors(
     beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
                     beam.PCollection[Tuple[KeyT,
@@ -95,10 +156,12 @@ class _RunDetectors(
   def __init__(self,
                model_id: Optional[str],
                detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
-               aggregation_strategy: Optional[AggregationFunc] = None):
+               aggregation_strategy: Optional[AggregationFunc] = None,
+               threshold_criterion: Optional[ThresholdFunc] = None):
     self._model_id = model_id
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
+    self._threshold_criterion = threshold_criterion
 
   def expand(
       self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]]
@@ -110,32 +173,13 @@ class _RunDetectors(
           score_result = (
               input | f"Run detectors under {detector}" >> _RunDetectors(
                   detector.model_id, detector.learners,
-                  detector.aggregation_strategy))
+                  detector.aggregation_strategy, detector.threshold_criterion))
         else:
-          raise ValueError(f"No learners found at {detector}")
+          raise ValueError("No learners found at {detector}")
       else:
-        score_result = (
-            input
-            | f"Reshuffle ({detector})" >> beam.Reshuffle()
-            | f"Score and learn ({detector})" >> beam.ParDo(
-                _ScoreAndLearn(detector)).with_output_types(
-                    Tuple[KeyT, Tuple[Any, AnomalyResult]]))
-
-      if detector.threshold_criterion:
-        if detector.threshold_criterion.is_stateful:
-          model_results.append(
-              score_result
-              | f"Run stateful threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatefulThresholdDoFn(
-                      detector.threshold_criterion)))
-        else:
-          model_results.append(
-              score_result
-              | f"Run stateless threshold function ({detector})" >> beam.ParDo(
-                  thresholds.StatelessThresholdDoFn(
-                      detector.threshold_criterion)))
-      else:
-        model_results.append(score_result)
+        score_result = input | f"Run one detector {detector}" >> _RunOneDetector(
+            detector)
+      model_results.append(score_result)
 
     merged = model_results | f"Flatten {self._model_id}" >> beam.Flatten()
 
@@ -156,6 +200,9 @@ class _RunDetectors(
                   prediction=agg([result.prediction for result in v])))))
           .with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
 
+    ret |= f"Run Threshold ({self._model_id})" >> _RunThresholdCriterion(
+          self._model_id, self._threshold_criterion)
+
     return ret
 
 
@@ -168,10 +215,12 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
       self,
       detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
       aggregation_strategy: Optional[AggregationFunc[ScoreT, LabelT]] = None,
+      threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
     self._detectors = detectors
     self._aggregation_strategy = aggregation_strategy
+    self._threshold_criterion = threshold_criterion
     self._root_model_id = root_model_id
 
   def maybe_add_key(
@@ -191,7 +240,7 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
         input
         | "Add temp key" >> beam.Map(self.maybe_add_key)
         | _RunDetectors(self._root_model_id, self._detectors,
-                        self._aggregation_strategy))
+                        self._aggregation_strategy, self._threshold_criterion))
 
     remove_temp_key_func: Callable[
         [KeyT, Tuple[Any, AnomalyResult[ExampleT, ScoreT, LabelT]]],
