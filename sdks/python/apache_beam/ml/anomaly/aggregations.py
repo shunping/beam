@@ -20,24 +20,31 @@ import math
 import statistics
 from typing import Callable
 from typing import Iterable
-from typing import Union
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AggregationFunc
 
 
-class SimpleAggregation(AggregationFunc):
+class SimpleLabelAggregation(AggregationFunc):
   def __init__(
       self,
-      agg_func: Union[Callable[[Iterable[float]], float],
-                      Callable[[Iterable[int]], int]],
+      agg_func: Callable[[Iterable[int]], int],
+      include_history: bool = False):
+    self._agg_func = agg_func
+    self._include_history = include_history
+    self._model_override = None
+
+class SimpleScoreAggregation(AggregationFunc):
+  def __init__(
+      self,
+      agg_func: Callable[[Iterable[float]], float],
       include_history: bool = False):
     self._agg_func = agg_func
     self._include_history = include_history
     self._model_override = None
 
 
-class LabelAggregation(SimpleAggregation):
+class LabelAggregation(SimpleLabelAggregation):
   def apply(
       self, predictions: Iterable[AnomalyPrediction]
   ) -> AnomalyPrediction:
@@ -57,7 +64,7 @@ class LabelAggregation(SimpleAggregation):
         model_id=self._model_override, label=label, agg_history=history)
 
 
-class ScoreAggregation(SimpleAggregation):
+class ScoreAggregation(SimpleScoreAggregation):
   def apply(
       self, predictions: Iterable[AnomalyPrediction]
   ) -> AnomalyPrediction:
