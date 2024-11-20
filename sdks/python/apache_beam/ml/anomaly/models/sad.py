@@ -19,11 +19,11 @@ import math
 
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
-from apache_beam.ml.anomaly.models.base import WithBeamRowInput
+from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-class StandardAbsoluteDeviation(WithBeamRowInput):
+class StandardAbsoluteDeviation(AnomalyDetector):
 
   def __init__(self,
                sub_stat="mean",

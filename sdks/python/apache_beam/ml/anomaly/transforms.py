@@ -25,13 +25,13 @@ import uuid
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import thresholds
-from apache_beam.ml.anomaly.base import AnomalyModel
+from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.base import ThresholdFunc
-from apache_beam.ml.anomaly.detectors import AnomalyDetector
-from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
+from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
@@ -40,14 +40,17 @@ from apache_beam.utils import timestamp
 class _ScoreAndLearn(beam.DoFn):
   MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
-  def __init__(self, detector: AnomalyDetector):
+  def __init__(self, detector: AnomalyDetectorConfig):
     self._detector = detector
     self._canonical_alg = self._detector.algorithm.lower()
     if not self._canonical_alg in KNOWN_ALGORITHMS:
       raise NotImplementedError(f"algorithm '{detector.algorithm}' not found")
 
   def score_and_learn(self, data):
-    x = self._underlying.get_x(data)
+    if self._underlying._features is not None:
+      x = beam.Row(**{f: getattr(data, f) for f in self._underlying._features})
+    else:
+      x = beam.Row(**data._asdict())
     y_pred = self._underlying.score_one(x)
     self._underlying.learn_one(x)
     return y_pred
@@ -67,7 +70,7 @@ class _ScoreAndLearn(beam.DoFn):
           "features": self._detector.features,
           "target": self._detector.target
       })
-      self._underlying: AnomalyModel = model_class(**kwargs)
+      self._underlying: AnomalyDetector = model_class(**kwargs)
 
     yield k1, (k2,
                AnomalyResult(
@@ -140,7 +143,7 @@ class _RunEnsembleDetector(
                                            Tuple[Any,
                                                  AnomalyResult]]]]):
 
-  def __init__(self, ensemble_detector: EnsembleAnomalyDetector):
+  def __init__(self, ensemble_detector: EnsembleAnomalyDetectorConfig):
     self._ensemble_detector = ensemble_detector
 
   def expand(
@@ -154,7 +157,7 @@ class _RunEnsembleDetector(
       raise ValueError(f"No detectors found at {model_uuid}")
 
     for idx, detector in enumerate(self._ensemble_detector.learners):
-      if isinstance(detector, EnsembleAnomalyDetector):
+      if isinstance(detector, EnsembleAnomalyDetectorConfig):
         score_result = (
             input | f"Run Ensemble Detector at index {idx} ({model_uuid})" >>
             _RunEnsembleDetector(detector))
@@ -201,12 +204,12 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
 
   def __init__(
       self,
-      detectors: Iterable[AnomalyDetector],
+      detectors: Iterable[AnomalyDetectorConfig],
       aggregation_strategy: Optional[AggregationFunc] = None,
       threshold_criterion: Optional[ThresholdFunc] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
-    self._root = EnsembleAnomalyDetector(
+    self._root = EnsembleAnomalyDetectorConfig(
         algorithm="ensemble",
         model_id=root_model_id,
         learners=detectors,  # type: ignore

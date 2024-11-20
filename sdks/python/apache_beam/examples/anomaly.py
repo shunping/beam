@@ -4,8 +4,8 @@ import logging
 import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
-from apache_beam.ml.anomaly.detectors import AnomalyDetector
-from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
+from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -38,27 +38,27 @@ def run(argv=None, save_main_session=True):
 
   detectors = []
   detectors.append(
-      AnomalyDetector(
+      AnomalyDetectorConfig(
           algorithm="SAD",
           features=["x1"],
           threshold_criterion=FixedThreshold(3),
           #id="sad_x1"
       ))
   detectors.append(
-      AnomalyDetector(
+      AnomalyDetectorConfig(
           algorithm="SAD",
           features=["x2"],
           threshold_criterion=FixedThreshold(2),
           model_id="sad_x2"))
   detectors.append(
-      EnsembleAnomalyDetector(
+      EnsembleAnomalyDetectorConfig(
           n=3,
           algorithm="loda",
           model_id="ensemble-loda",
           features=["x1", "x2"],
           aggregation_strategy=AverageScore()))
   detectors.append(
-      EnsembleAnomalyDetector(
+      EnsembleAnomalyDetectorConfig(
           n=3,
           algorithm="loda",
           #model_id="ensemble-loda",

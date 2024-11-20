@@ -25,8 +25,8 @@ from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.detectors import AnomalyDetector
-from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
+from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
+from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
 from apache_beam.testing.test_pipeline import TestPipeline
@@ -62,7 +62,7 @@ class TestAnomalyDetection(unittest.TestCase):
     ]
     detectors = []
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
@@ -107,13 +107,13 @@ class TestAnomalyDetection(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
@@ -146,13 +146,13 @@ class TestAnomalyDetection(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
@@ -187,7 +187,7 @@ class TestAnomalyDetection(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        EnsembleAnomalyDetector(
+        EnsembleAnomalyDetectorConfig(
             algorithm="loda",
             algorithm_args={"n_init": 2},
             n=3,
@@ -233,24 +233,24 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             algorithm="SAD",
             features=["x1"],
             threshold_criterion=threshold_func))
     detectors.append(
-        AnomalyDetector(
+        AnomalyDetectorConfig(
             model_id="sad_x2",
             algorithm="SAD",
             features=["x2"],
             threshold_criterion=threshold_func))
     detectors.append(
-        EnsembleAnomalyDetector(
+        EnsembleAnomalyDetectorConfig(
             algorithm="loda",
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_func))
     detectors.append(
-        EnsembleAnomalyDetector(
+        EnsembleAnomalyDetectorConfig(
             model_id="ensemble_2",
             algorithm="loda",
             features=["x1", "x2"],

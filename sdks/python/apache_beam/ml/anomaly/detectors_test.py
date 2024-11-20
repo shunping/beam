@@ -21,21 +21,21 @@ import mock
 import unittest
 
 from apache_beam.ml.anomaly import detectors
-from apache_beam.ml.anomaly.base import AnomalyModel
+from apache_beam.ml.anomaly.base import AnomalyDetector
 
 
 class TestAnomalyDetector(unittest.TestCase):
   def setUp(self) -> None:
-    self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
+    self.mocked_model_class = mock.create_autospec(type(AnomalyDetector))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 
   def test_unknown_detector(self):
     self.assertRaises(
-        NotImplementedError, detectors.AnomalyDetector, "unknown-alg")
+        NotImplementedError, detectors.AnomalyDetectorConfig, "unknown-alg")
 
   def test_known_detector(self):
-    d1 = detectors.AnomalyDetector(self.my_alg)
+    d1 = detectors.AnomalyDetectorConfig(self.my_alg)
     self.assertEqual(d1.algorithm, self.my_alg)
     assert d1.model_id is not None
     self.assertEqual(d1.model_id, d1.algorithm)
@@ -46,7 +46,7 @@ class TestAnomalyDetector(unittest.TestCase):
   def test_known_detector_with_weird_case_alg(self):
     my_alg_with_weird_case = "Newly-ADDED-aLg"
     my_id = "new_id"
-    d2 = detectors.AnomalyDetector(my_alg_with_weird_case, model_id=my_id)
+    d2 = detectors.AnomalyDetectorConfig(my_alg_with_weird_case, model_id=my_id)
     self.assertEqual(d2.algorithm, my_alg_with_weird_case)
     self.assertEqual(d2.model_id, my_id)
 
@@ -56,15 +56,15 @@ class TestAnomalyDetector(unittest.TestCase):
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
   def setUp(self) -> None:
-    self.mocked_model_class = mock.create_autospec(type(AnomalyModel))
+    self.mocked_model_class = mock.create_autospec(type(AnomalyDetector))
     self.my_alg = "newly-added-alg"
     detectors.KNOWN_ALGORITHMS.update({self.my_alg: self.mocked_model_class})
 
   @staticmethod
   def are_detectors_equal_ignoring_id(
-      d1: detectors.AnomalyDetector, d2: detectors.AnomalyDetector):
+      d1: detectors.AnomalyDetectorConfig, d2: detectors.AnomalyDetectorConfig):
     field_names = tuple(
-        f.name for f in dataclasses.fields(detectors.AnomalyDetector))
+        f.name for f in dataclasses.fields(detectors.AnomalyDetectorConfig))
     for f in field_names:
       if f == "model_id":
         continue
@@ -75,24 +75,24 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
   def test_unknown_detector(self):
     self.assertRaises(
         NotImplementedError,
-        detectors.EnsembleAnomalyDetector,
+        detectors.EnsembleAnomalyDetectorConfig,
         "unknown-alg",
     )
 
   def test_known_detector(self):
-    d = detectors.EnsembleAnomalyDetector(self.my_alg)
+    d = detectors.EnsembleAnomalyDetectorConfig(self.my_alg)
     self.assertEqual(d.algorithm, self.my_alg)
     self.assertEqual(len(d.learners), 10)  # type: ignore
     for i in range(10):
       self.assertTrue(
           TestEnsembleAnomalyDetector.are_detectors_equal_ignoring_id(
               d.learners[i],  # type: ignore
-              detectors.AnomalyDetector(self.my_alg)))
+              detectors.AnomalyDetectorConfig(self.my_alg)))
     assert d.model_id is not None
     self.assertEqual(d.model_id, "ensemble")
 
   def test_known_detector_with_n_and_kwargs(self):
-    d = detectors.EnsembleAnomalyDetector(
+    d = detectors.EnsembleAnomalyDetectorConfig(
         self.my_alg, n=5, algorithm_args={"window_size": 50})
     self.assertEqual(d.algorithm, self.my_alg)
     self.assertEqual(len(d.learners), 5)  # type: ignore
@@ -100,16 +100,16 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
       self.assertTrue(
           TestEnsembleAnomalyDetector.are_detectors_equal_ignoring_id(
               d.learners[i],  # type: ignore
-              detectors.AnomalyDetector(
+              detectors.AnomalyDetectorConfig(
                   self.my_alg, algorithm_args={"window_size": 50})))
 
   def test_known_detector_with_custom_weak_learners(self):
-    sub_d1 = detectors.AnomalyDetector(
+    sub_d1 = detectors.AnomalyDetectorConfig(
         self.my_alg, algorithm_args={"window_size": 10})
-    sub_d2 = detectors.AnomalyDetector(
+    sub_d2 = detectors.AnomalyDetectorConfig(
         self.my_alg, algorithm_args={"window_size": 20})
 
-    d = detectors.EnsembleAnomalyDetector(
+    d = detectors.EnsembleAnomalyDetectorConfig(
         self.my_alg,
         n=5,
         algorithm_args={"window_size": 50},

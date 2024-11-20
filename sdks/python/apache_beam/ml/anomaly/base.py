@@ -42,17 +42,13 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
-class AnomalyModel(abc.ABC):
+class AnomalyDetector(abc.ABC):
   def __init__(
       self,
       features: Optional[Iterable[str]] = None,
       target: Optional[str] = None):
     self._features = features
     self._target = target
-
-  @abc.abstractmethod
-  def get_x(self, data) -> beam.Row:
-    raise NotImplementedError
 
   @abc.abstractmethod
   def learn_one(self, x: beam.Row) -> None:

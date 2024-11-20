@@ -18,11 +18,11 @@
 import numpy as np
 
 import apache_beam as beam
-from apache_beam.ml.anomaly.models.base import WithBeamRowInput
+from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly import univariate
 
 
-class LodaWeakLearner(WithBeamRowInput):
+class LodaWeakLearner(AnomalyDetector):
   def __init__(
       self,
       n_init=256,

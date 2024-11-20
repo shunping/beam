@@ -27,7 +27,7 @@ from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
 @dataclasses.dataclass(frozen=True)
-class AnomalyDetector():
+class AnomalyDetectorConfig():
   algorithm: str
   algorithm_args: Optional[dict[str, Any]] = None
   model_id: Optional[str] = None
@@ -45,10 +45,10 @@ class AnomalyDetector():
 
 
 @dataclasses.dataclass(frozen=True)
-class EnsembleAnomalyDetector(AnomalyDetector):
+class EnsembleAnomalyDetectorConfig(AnomalyDetectorConfig):
   n: int = 10
   aggregation_strategy: Optional[AggregationFunc] = None
-  learners: Optional[List[AnomalyDetector]] = None
+  learners: Optional[List[AnomalyDetectorConfig]] = None
 
   def __post_init__(self):
     # propagate fields to base class except for id
@@ -60,7 +60,7 @@ class EnsembleAnomalyDetector(AnomalyDetector):
     if not self.learners:
       super().__setattr__('learners', [])
       for _ in range(self.n):
-        self.learners.append(AnomalyDetector(**kwargs))  # type: ignore
+        self.learners.append(AnomalyDetectorConfig(**kwargs))  # type: ignore
     else:
       logging.warning("Setting weak_learners will override all other arguments "
                       "except aggregation_strategy (if set).")

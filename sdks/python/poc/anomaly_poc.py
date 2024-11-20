@@ -55,7 +55,7 @@ def run():
         INPUT, splittable=False) | beam.WithKeys(1)
     detectors = []
     detectors.append(
-        anomaly.AnomalyDetector(
+        anomaly.AnomalyDetectorConfig(
             algorithm="SAD",
             # id="SAD_1",
             features=["feat_1"],
@@ -64,20 +64,20 @@ def run():
             threshold_criterion=anomaly.QuantileThreshold(0.95),
         ))
     detectors.append(
-        anomaly.AnomalyDetector(
+        anomaly.AnomalyDetectorConfig(
             algorithm="SAD",
             model_id="SAD_2",
             algorithm_args={"window_size": 50, "sub_stat": "median"},
             features=["feat_2"],
             target="label"))
     detectors.append(
-        anomaly.AnomalyDetector(
+        anomaly.AnomalyDetectorConfig(
             algorithm="MAD",
             algorithm_args={"window_size": 50},
             features=["feat_1"],
             target="label"))
     detectors.append(
-        anomaly.AnomalyDetector(
+        anomaly.AnomalyDetectorConfig(
             algorithm="MAD",
             algorithm_args={"window_size": 50},
             features=["feat_2"],
@@ -86,7 +86,7 @@ def run():
     #     anomaly.AnomalyDetector(
     #         algorithm="iLOF", features=["feat_1", "feat_2"], target="label"))
     detectors.append(
-        anomaly.EnsembleAnomalyDetector(
+        anomaly.EnsembleAnomalyDetectorConfig(
             n=3,
             algorithm="loda",
             features=["feat_1", "feat_2"],
