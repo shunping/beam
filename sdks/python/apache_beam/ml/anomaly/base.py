@@ -20,33 +20,29 @@ from __future__ import annotations
 
 import abc
 from dataclasses import dataclass
-from typing import Generic
 from typing import Iterable
 from typing import Optional
-from typing import TypeVar
 
-ExampleT = TypeVar('ExampleT')
-ScoreT = TypeVar('ScoreT')
-LabelT = TypeVar('LabelT')
+import apache_beam as beam
 
 
 @dataclass(frozen=True)
-class AnomalyPrediction(Generic[ScoreT, LabelT]):
+class AnomalyPrediction():
   model_id: Optional[str] = None
-  score: Optional[ScoreT] = None
-  label: Optional[LabelT] = None
-  threshold: Optional[ScoreT] = None
+  score: Optional[float] = None
+  label: Optional[int] = None
+  threshold: Optional[float] = None
   info: str = ""
-  agg_history: Optional[Iterable[AnomalyPrediction[ScoreT, LabelT]]] = None
+  agg_history: Optional[Iterable[AnomalyPrediction]] = None
 
 
 @dataclass(frozen=True)
-class AnomalyResult(Generic[ExampleT, ScoreT, LabelT]):
-  example: ExampleT
-  prediction: AnomalyPrediction[ScoreT, LabelT]
+class AnomalyResult():
+  example: beam.Row
+  prediction: AnomalyPrediction
 
 
-class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
+class AnomalyModel(abc.ABC):
   def __init__(
       self,
       features: Optional[Iterable[str]] = None,
@@ -54,22 +50,21 @@ class AnomalyModel(abc.ABC, Generic[ExampleT, ScoreT]):
     self._features = features
     self._target = target
 
-  # assume example type is the same as model input type
   @abc.abstractmethod
-  def get_x(self, data: ExampleT) -> ExampleT:
+  def get_x(self, data) -> beam.Row:
     raise NotImplementedError
 
   @abc.abstractmethod
-  def learn_one(self, x: ExampleT) -> None:
+  def learn_one(self, x: beam.Row) -> None:
     raise NotImplementedError
 
   @abc.abstractmethod
-  def score_one(self, x: ExampleT) -> ScoreT:
+  def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
 
 
-class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
-  def __init__(self, normal_label: LabelT = 0, outlier_label: LabelT = 1):
+class ThresholdFunc(abc.ABC):
+  def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
 
@@ -80,17 +75,17 @@ class ThresholdFunc(abc.ABC, Generic[ScoreT, LabelT]):
 
   @property
   @abc.abstractmethod
-  def threshold(self) -> Optional[ScoreT]:
+  def threshold(self) -> Optional[float]:
     raise NotImplementedError
 
   @abc.abstractmethod
-  def __call__(self, score: ScoreT) -> LabelT:
+  def apply(self, score: Optional[float]) -> int:
     raise NotImplementedError
 
 
-class AggregationFunc(abc.ABC, Generic[ScoreT, LabelT]):
+class AggregationFunc(abc.ABC):
   @abc.abstractmethod
-  def __call__(
-      self, predictions: Iterable[AnomalyPrediction[ScoreT, LabelT]]
-  ) -> AnomalyPrediction[ScoreT, LabelT]:
+  def apply(
+      self, predictions: Iterable[AnomalyPrediction]
+  ) -> AnomalyPrediction:
     raise NotImplementedError

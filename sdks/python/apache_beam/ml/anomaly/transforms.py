@@ -17,11 +17,9 @@
 
 from typing import Any
 from typing import Callable
-from typing import Generic
 from typing import Iterable
 from typing import Tuple
 from typing import Optional
-from typing import TypeVar
 import uuid
 
 import apache_beam as beam
@@ -32,19 +30,14 @@ from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFunc
 from apache_beam.ml.anomaly.base import ThresholdFunc
-from apache_beam.ml.anomaly.base import ExampleT
-from apache_beam.ml.anomaly.base import LabelT
-from apache_beam.ml.anomaly.base import ScoreT
 from apache_beam.ml.anomaly.detectors import AnomalyDetector
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 
-KeyT = TypeVar('KeyT')
 
-
-class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
+class _ScoreAndLearn(beam.DoFn):
   MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
   def __init__(self, detector: AnomalyDetector):
@@ -60,9 +53,9 @@ class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
     return y_pred
 
   def process(self,
-              element: Tuple[KeyT, Tuple[Any, ExampleT]],
+              element: Tuple[Any, Tuple[Any, beam.Row]],
               model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
     k1, (k2, data) = element
     self._underlying = model_state.read()  # type: ignore
@@ -74,12 +67,12 @@ class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
           "features": self._detector.features,
           "target": self._detector.target
       })
-      self._underlying: AnomalyModel[ExampleT, ScoreT] = model_class(**kwargs)
+      self._underlying: AnomalyModel = model_class(**kwargs)
 
     yield k1, (k2,
                AnomalyResult(
                    example=data,
-                   prediction=AnomalyPrediction[ScoreT, LabelT](
+                   prediction=AnomalyPrediction(
                        model_id=self._detector.model_id,
                        score=self.score_and_learn(data))))
 
@@ -87,20 +80,18 @@ class _ScoreAndLearn(beam.DoFn, Generic[ExampleT, ScoreT, LabelT]):
 
 
 class _RunThresholdCriterion(
-    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
-                    beam.PCollection[Tuple[KeyT,
+    beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
+                    beam.PCollection[Tuple[Any,
                                            Tuple[Any,
-                                                 AnomalyResult[ExampleT, ScoreT,
-                                                               LabelT]]]]],
-    Generic[KeyT, ExampleT, ScoreT, LabelT]):
+                                                 AnomalyResult]]]]):
 
   def __init__(self, model_id, threshold_criterion):
     self._model_id = model_id
     self._threshold_criterion = threshold_criterion
 
   def expand(
-      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]
-  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+      self, input: beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]
+  ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     if self._threshold_criterion:
       if self._threshold_criterion.is_stateful:
         postprocess_result = (
@@ -119,26 +110,24 @@ class _RunThresholdCriterion(
 
 
 class _RunOneDetector(
-    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
-                    beam.PCollection[Tuple[KeyT,
+    beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
+                    beam.PCollection[Tuple[Any,
                                            Tuple[Any,
-                                                 AnomalyResult[ExampleT, ScoreT,
-                                                               LabelT]]]]],
-    Generic[KeyT, ExampleT, ScoreT, LabelT]):
+                                                 AnomalyResult]]]]):
 
   def __init__(self, detector):
     self._detector = detector
 
   def expand(
-      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]]
-  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+      self, input: beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]]
+  ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     model_uuid = f"{self._detector.model_id}:{uuid.uuid4().hex[:6]}"
     result: Any = (
         input
         | beam.Reshuffle()
         | f"Score and Learn ({model_uuid})" >> beam.ParDo(
             _ScoreAndLearn(self._detector)).with_output_types(
-                Tuple[KeyT, Tuple[Any, AnomalyResult]])
+                Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
             self._detector.model_id, self._detector.threshold_criterion))
 
@@ -146,19 +135,17 @@ class _RunOneDetector(
 
 
 class _RunEnsembleDetector(
-    beam.PTransform[beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]],
-                    beam.PCollection[Tuple[KeyT,
+    beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
+                    beam.PCollection[Tuple[Any,
                                            Tuple[Any,
-                                                 AnomalyResult[ExampleT, ScoreT,
-                                                               LabelT]]]]],
-    Generic[KeyT, ExampleT, ScoreT, LabelT]):
+                                                 AnomalyResult]]]]):
 
   def __init__(self, ensemble_detector: EnsembleAnomalyDetector):
     self._ensemble_detector = ensemble_detector
 
   def expand(
-      self, input: beam.PCollection[Tuple[KeyT, Tuple[Any, ExampleT]]]
-  ) -> beam.PCollection[Tuple[KeyT, Tuple[Any, AnomalyResult]]]:
+      self, input: beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]]
+  ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     model_uuid = f"{self._ensemble_detector.model_id}:{uuid.uuid4().hex[:6]}"
 
     model_results = []
@@ -197,8 +184,8 @@ class _RunEnsembleDetector(
               (k[0], (k[1],
                       AnomalyResult(
                           example=v[0].example,
-                          prediction=agg([result.prediction for result in v])))
-              )).with_output_types(Tuple[KeyT, Tuple[Any, AnomalyResult]]))
+                          prediction=agg.apply([result.prediction for result in v])))
+              )).with_output_types(Tuple[Any, Tuple[Any, AnomalyResult]]))
 
     ret = (
         ret | f"Run Threshold Criterion ({model_uuid})" >>
@@ -208,16 +195,15 @@ class _RunEnsembleDetector(
     return ret
 
 
-class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
-                                       beam.PCollection[Tuple[KeyT,
-                                                              AnomalyResult]]],
-                       Generic[KeyT, ExampleT, ScoreT, LabelT]):
+class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
+                                       beam.PCollection[Tuple[Any,
+                                                              AnomalyResult]]]):
 
   def __init__(
       self,
-      detectors: Iterable[AnomalyDetector[ScoreT, LabelT]],
-      aggregation_strategy: Optional[AggregationFunc[ScoreT, LabelT]] = None,
-      threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None,
+      detectors: Iterable[AnomalyDetector],
+      aggregation_strategy: Optional[AggregationFunc] = None,
+      threshold_criterion: Optional[ThresholdFunc] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
     self._root = EnsembleAnomalyDetector(
@@ -229,15 +215,15 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
     object.__setattr__(self._root, "model_id", root_model_id)
 
   def maybe_add_key(
-      self, element: Tuple[KeyT,
-                           ExampleT]) -> Tuple[KeyT, Tuple[Any, ExampleT]]:
+      self, element: Tuple[Any,
+                           beam.Row]) -> Tuple[Any, Tuple[Any, beam.Row]]:
     key, row = element
     return key, (timestamp.Timestamp.now().micros, row)
 
   def expand(
       self,
-      input: beam.PCollection[Tuple[KeyT, ExampleT]],
-  ) -> beam.PCollection[Tuple[KeyT, AnomalyResult]]:
+      input: beam.PCollection[Tuple[Any, beam.Row]],
+  ) -> beam.PCollection[Tuple[Any, AnomalyResult]]:
 
     ret: Any = (
         input
@@ -245,8 +231,8 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[KeyT, ExampleT]],
         | _RunEnsembleDetector(self._root))
 
     remove_temp_key_func: Callable[
-        [KeyT, Tuple[Any, AnomalyResult[ExampleT, ScoreT, LabelT]]],
-        Tuple[KeyT, AnomalyResult]] = lambda k, v: (k, v[1])
+        [Any, Tuple[Any, AnomalyResult]],
+        Tuple[Any, AnomalyResult]] = lambda k, v: (k, v[1])
     ret = ret | "Remove temp key" >> beam.MapTuple(remove_temp_key_func)
 
     return ret

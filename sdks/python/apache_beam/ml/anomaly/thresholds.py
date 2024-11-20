@@ -19,14 +19,13 @@ import copy
 import dataclasses
 from typing import Any
 from typing import Iterable
+from typing import Optional
 from typing import Tuple
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import LabelT
-from apache_beam.ml.anomaly.base import ScoreT
 from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
@@ -36,7 +35,7 @@ class BaseThresholdDoFn(beam.DoFn):
     self._threshold_func = threshold_func
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
-    label = self._threshold_func(result.prediction.score)
+    label = self._threshold_func.apply(result.prediction.score)
     return dataclasses.replace(
         result,
         prediction=dataclasses.replace(
@@ -81,8 +80,8 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
     threshold_state.write(self._threshold_func)  # type: ignore
 
 
-class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
-  def __init__(self, threshold: ScoreT, **kwargs):
+class FixedThreshold(ThresholdFunc):
+  def __init__(self, threshold: float, **kwargs):
     super().__init__(**kwargs)
     self._threshold = threshold
 
@@ -91,17 +90,17 @@ class FixedThreshold(ThresholdFunc[ScoreT, LabelT]):
     return False
 
   @property
-  def threshold(self) -> ScoreT:
+  def threshold(self) -> float:
     return self._threshold
 
-  def __call__(self, score: ScoreT) -> LabelT:
+  def apply(self, score: Optional[float]) -> int:
     if score is None or score < self._threshold:  # type: ignore
       return self._normal_label
 
     return self._outlier_label
 
 
-class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
+class QuantileThreshold(ThresholdFunc):
   def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)
     self._quantile = quantile
@@ -114,13 +113,13 @@ class QuantileThreshold(ThresholdFunc[ScoreT, LabelT]):
     return True
 
   @property
-  def threshold(self) -> ScoreT:
+  def threshold(self) -> float:
     return self._tracker.get(self._quantile)
 
-  def __call__(self, score: ScoreT) -> LabelT:
+  def apply(self, score: Optional[float]) -> int:
     self._tracker.push(score)
 
-    if score is None or score < self.threshold:  # type: ignore
+    if score is None or score < self.threshold:
       return self._normal_label
 
     return self._outlier_label

@@ -18,7 +18,7 @@
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyModel
 
-class WithBeamRowInput(AnomalyModel[beam.Row, float]):
+class WithBeamRowInput(AnomalyModel):
   def get_x(self, data) -> beam.Row:
     if self._features is not None:
       return beam.Row(**{f: getattr(data, f) for f in self._features})

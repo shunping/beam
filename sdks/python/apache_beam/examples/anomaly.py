@@ -45,20 +45,20 @@ def run(argv=None, save_main_session=True):
           #id="sad_x1"
       ))
   detectors.append(
-      AnomalyDetector[float, int](
+      AnomalyDetector(
           algorithm="SAD",
           features=["x2"],
           threshold_criterion=FixedThreshold(2),
           model_id="sad_x2"))
   detectors.append(
-      EnsembleAnomalyDetector[float, int](
+      EnsembleAnomalyDetector(
           n=3,
           algorithm="loda",
           model_id="ensemble-loda",
           features=["x1", "x2"],
           aggregation_strategy=AverageScore()))
   detectors.append(
-      EnsembleAnomalyDetector[float, int](
+      EnsembleAnomalyDetector(
           n=3,
           algorithm="loda",
           #model_id="ensemble-loda",

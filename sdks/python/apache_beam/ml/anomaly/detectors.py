@@ -18,25 +18,22 @@
 import dataclasses
 import logging
 from typing import Any
-from typing import Generic
 from typing import Optional
 from typing import List
 
 from apache_beam.ml.anomaly.base import AggregationFunc
-from apache_beam.ml.anomaly.base import LabelT
-from apache_beam.ml.anomaly.base import ScoreT
 from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
 @dataclasses.dataclass(frozen=True)
-class AnomalyDetector(Generic[ScoreT, LabelT]):
+class AnomalyDetector():
   algorithm: str
   algorithm_args: Optional[dict[str, Any]] = None
   model_id: Optional[str] = None
   features: Optional[List[str]] = None
   target: Optional[str] = None
-  threshold_criterion: Optional[ThresholdFunc[ScoreT, LabelT]] = None
+  threshold_criterion: Optional[ThresholdFunc] = None
 
   def __post_init__(self):
     canonical_alg = self.algorithm.lower()
@@ -48,10 +45,10 @@ class AnomalyDetector(Generic[ScoreT, LabelT]):
 
 
 @dataclasses.dataclass(frozen=True)
-class EnsembleAnomalyDetector(AnomalyDetector[ScoreT, LabelT]):
+class EnsembleAnomalyDetector(AnomalyDetector):
   n: int = 10
-  aggregation_strategy: Optional[AggregationFunc[ScoreT, Any]] = None
-  learners: Optional[List[AnomalyDetector[ScoreT, LabelT]]] = None
+  aggregation_strategy: Optional[AggregationFunc] = None
+  learners: Optional[List[AnomalyDetector]] = None
 
   def __post_init__(self):
     # propagate fields to base class except for id
