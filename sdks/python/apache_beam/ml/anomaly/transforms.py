@@ -18,6 +18,7 @@
 from typing import Any
 from typing import Callable
 from typing import Iterable
+from typing import List
 from typing import Tuple
 from typing import Optional
 import uuid
@@ -30,9 +31,7 @@ from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFn
 from apache_beam.ml.anomaly.base import ThresholdFn
-from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
-from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
-from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
+from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.utils import timestamp
 
@@ -40,13 +39,15 @@ from apache_beam.utils import timestamp
 class _ScoreAndLearn(beam.DoFn):
   MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
-  def __init__(self, detector: AnomalyDetectorConfig):
+  def __init__(self, detector: AnomalyDetector):
     self._detector = detector
-    self._canonical_alg = self._detector.algorithm.lower()
-    if not self._canonical_alg in KNOWN_ALGORITHMS:
-      raise NotImplementedError(f"algorithm '{detector.algorithm}' not found")
+    # object.__delattr__(self._detector, "algorithm_args")
+    # self._canonical_alg = self._detector.type.lower()
+    # if not self._canonical_alg in KNOWN_ALGORITHMS:
+    #   raise NotImplementedError(f"algorithm '{detector.type}' not found")
 
   def score_and_learn(self, data):
+    assert self._underlying
     if self._underlying._features is not None:
       x = beam.Row(**{f: getattr(data, f) for f in self._underlying._features})
     else:
@@ -63,21 +64,16 @@ class _ScoreAndLearn(beam.DoFn):
     k1, (k2, data) = element
     self._underlying = model_state.read()  # type: ignore
     if self._underlying is None:
-      model_class = KNOWN_ALGORITHMS[self._canonical_alg]
-      assert model_class is not None, "model {self._canonical_alg} not found"
-      kwargs = self._detector.algorithm_args if self._detector.algorithm_args is not None else {}
-      kwargs.update({
-          "features": self._detector.features,
-          "target": self._detector.target
-      })
-      self._underlying: AnomalyDetector = model_class(
-          initialize_model=True, **kwargs)
+      conf = self._detector.to_config()
+      assert conf.args is not None
+      conf.args["initialize_model"] =  True
+      self._underlying = AnomalyDetector.from_config(conf)
 
     yield k1, (k2,
                AnomalyResult(
                    example=data,
                    prediction=AnomalyPrediction(
-                       model_id=self._detector.model_id,
+                       model_id=self._detector._model_id,
                        score=self.score_and_learn(data))))
 
     model_state.write(self._underlying)  # type: ignore
@@ -95,7 +91,8 @@ class _RunThresholdCriterion(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
-    threshold_fn = ThresholdFn.from_config(self._threshold_criterion)
+    # threshold_fn = ThresholdFn.from_config(self._threshold_criterion)
+    threshold_fn = self._threshold_criterion
     if threshold_fn:
       if threshold_fn.is_stateful:
         postprocess_result = (
@@ -116,12 +113,13 @@ class _RunOneDetector(
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
 
   def __init__(self, detector):
+    # self._detector = AnomalyDetector.from_config(detector)
     self._detector = detector
 
   def expand(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
-    model_uuid = f"{self._detector.model_id}:{uuid.uuid4().hex[:6]}"
+    model_uuid = f"{self._detector._model_id}:{uuid.uuid4().hex[:6]}"
     result: Any = (
         input
         | beam.Reshuffle()
@@ -129,7 +127,7 @@ class _RunOneDetector(
             _ScoreAndLearn(self._detector)).with_output_types(
                 Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
-            self._detector.model_id, self._detector.threshold_criterion))
+            self._detector._model_id, self._detector._threshold_criterion))
 
     return result
 
@@ -138,21 +136,21 @@ class _RunEnsembleDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
 
-  def __init__(self, ensemble_detector: EnsembleAnomalyDetectorConfig):
+  def __init__(self, ensemble_detector: EnsembleAnomalyDetector):
     self._ensemble_detector = ensemble_detector
 
   def expand(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
-    model_uuid = f"{self._ensemble_detector.model_id}:{uuid.uuid4().hex[:6]}"
+    model_uuid = f"{self._ensemble_detector._model_id}:{uuid.uuid4().hex[:6]}"
 
     model_results = []
-    assert self._ensemble_detector.learners is not None
-    if not self._ensemble_detector.learners:
+    assert self._ensemble_detector._learners is not None
+    if not self._ensemble_detector._learners:
       raise ValueError(f"No detectors found at {model_uuid}")
 
-    for idx, detector in enumerate(self._ensemble_detector.learners):
-      if isinstance(detector, EnsembleAnomalyDetectorConfig):
+    for idx, detector in enumerate(self._ensemble_detector._learners):
+      if isinstance(detector, EnsembleAnomalyDetector):
         score_result = (
             input | f"Run Ensemble Detector at index {idx} ({model_uuid})" >>
             _RunEnsembleDetector(detector))
@@ -166,13 +164,14 @@ class _RunEnsembleDetector(
     merged = (model_results | beam.Flatten())
 
     ret: Any = merged
-    if self._ensemble_detector.aggregation_strategy is not None:
+    # aggregation_strategy = AggregationFn.from_config(
+    #     self._ensemble_detector._aggregation_strategy)
+    aggregation_strategy = self._ensemble_detector._aggregation_strategy
+
+    if aggregation_strategy is not None:
       # if no model_override is set in the aggregation function, use
       # model id locally in the instance
-      print(self._ensemble_detector.aggregation_strategy)
 
-      aggregation_strategy = AggregationFn.from_config(
-          self._ensemble_detector.aggregation_strategy)
       if getattr(aggregation_strategy, "_model_override") is None:
         setattr(aggregation_strategy, "_model_override",
                 self._ensemble_detector.model_id)
@@ -190,8 +189,8 @@ class _RunEnsembleDetector(
 
     ret = (
         ret | f"Run Threshold Criterion ({model_uuid})" >>
-        _RunThresholdCriterion(self._ensemble_detector.model_id,
-                               self._ensemble_detector.threshold_criterion))
+        _RunThresholdCriterion(self._ensemble_detector._model_id,
+                               self._ensemble_detector._threshold_criterion))
 
     return ret
 
@@ -202,23 +201,28 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
 
   def __init__(
       self,
-      detectors: Iterable[AnomalyDetectorConfig],
+      detectors: List[AnomalyDetector],
       aggregation_strategy: Optional[AggregationFn] = None,
       threshold_criterion: Optional[ThresholdFn] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
-    detector_configs = [
-        detector if isinstance(detector, AnomalyDetectorConfig) else
-        detector.to_config() for detector in detectors
-    ]
-    self._root = EnsembleAnomalyDetectorConfig(
-        algorithm="ensemble",
-        model_id=root_model_id,
-        learners=detector_configs,  # type: ignore
-        aggregation_strategy=aggregation_strategy.to_config()
-        if aggregation_strategy else None,
-        threshold_criterion=threshold_criterion.to_config()
-        if threshold_criterion else None)
+    # detector_configs = [
+    #     detector if isinstance(detector, AnomalyDetectorConfig) else
+    #     detector.to_config() for detector in detectors
+    # ]
+    # self._root = EnsembleAnomalyDetectorConfig(
+    #     type="ensemble",
+    #     model_id=root_model_id,
+    #     learners=detector_configs,  # type: ignore
+    #     aggregation_strategy=aggregation_strategy.to_config()
+    #     if aggregation_strategy else None,
+    #     threshold_criterion=threshold_criterion.to_config()
+    #     if threshold_criterion else None)
+    self._root = EnsembleAnomalyDetector(model_id=root_model_id,
+                                         learners = detectors,
+                                         threshold_criterion=threshold_criterion,
+                                         aggregation_strategy=aggregation_strategy)
+
     object.__setattr__(self._root, "model_id", root_model_id)
 
   def maybe_add_key(

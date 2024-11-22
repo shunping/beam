@@ -24,7 +24,10 @@ import inspect
 import logging
 from typing import Any
 from typing import Iterable
+from typing import List
 from typing import Optional
+from typing import Type
+from typing import TypeVar
 
 import apache_beam as beam
 
@@ -45,6 +48,15 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
+ConfigT = TypeVar('ConfigT', bound='Configurable')
+
+
+@dataclasses.dataclass(frozen=True)
+class Config():
+  type: Optional[str] = None
+  args: Optional[dict[str, Any]] = None
+
+
 class Configurable():
   _known_subclasses = {}
   _key = None
@@ -54,39 +66,53 @@ class Configurable():
     cls._known_subclasses[name] = subclass
     subclass._key = name
 
+  # TODO: change to Self (PEP 673) after the minimum python support of Beam
+  # reaches 3.11.
+  # Refer to https://github.com/python/typing/issues/58
   @classmethod
-  def from_config(cls, config) -> Optional[Configurable]:
+  def from_config(cls: Type[ConfigT], config: Config) -> ConfigT:
     if config is None:
-      return None
+      raise ValueError("Config cannot be None")
 
-    if "type" not in config:
-      raise NotImplementedError(f"Type not found in config {config}")
+    if config.type is None:
+      raise ValueError(f"Type not found in config {config}")
 
-    subclass = cls._known_subclasses.get(config["type"], None)
+    subclass = cls._known_subclasses.get(config.type, None)
     if subclass is None:
-      raise NotImplementedError(f"Unknown config type in config {config}")
+      raise ValueError(f"Unknown config type in config {config}")
 
-    config.pop("type")
-    return subclass(**config)
+    return subclass(**config.args)
 
-  def to_config(self) -> dict[str, Any]:
+  def to_config(self) -> Config:
     if self.__class__._key is None:
       raise ValueError(f"Class {self.__class__.__name__} is not registered.")
 
-    config = {"type": self.__class__._key}
+    # config = {"type": self.__class__._key}
 
     args = []
     for cls in self.__class__.mro():
       args.extend(inspect.getfullargspec(cls.__init__).args)
 
+    config_args = {}
     for arg in set(args):
       if hasattr(self, f"_{arg}"):
-        config[arg] = getattr(self, f"_{arg}")
+        v = getattr(self, f"_{arg}")
+        if issubclass(v.__class__, Configurable):
+          config_args[arg] = v.to_config()
+        else:
+          config_args[arg] = v
       else:
         logging.warning("Unable to find _%s in the object of %s", arg,
                         self.__class__.__name__)
 
-    return config
+    ret = Config(type=self.__class__._key, args=config_args)
+    # field_types = {
+    #     (field.name, field.type) for field in dataclasses.fields(Config)
+    # }
+    # ConfigDataClass = dataclasses.make_dataclass(
+    #     f"{self.__class__.__name__}Config", field_types)
+    # ret = ConfigDataClass(type=ret.type, args=ret.args)
+    return ret
 
 
 class ThresholdFn(abc.ABC, Configurable):
@@ -118,25 +144,7 @@ class AggregationFn(abc.ABC, Configurable):
     raise NotImplementedError
 
 
-@dataclasses.dataclass(frozen=True)
-class AnomalyDetectorConfig():
-  algorithm: str
-  algorithm_args: Optional[dict[str, Any]] = None
-  model_id: Optional[str] = None
-  features: Optional[Iterable[str]] = None
-  target: Optional[str] = None
-  threshold_criterion: Optional[dict[str, Any]] = None
-
-  # def __post_init__(self):
-  #   canonical_alg = self.algorithm.lower()
-  #   if canonical_alg not in KNOWN_ALGORITHMS:
-  #     raise NotImplementedError(f"Algorithm '{self.algorithm}' not found")
-
-  #   if not self.model_id:
-  #     object.__setattr__(self, 'model_id', self.algorithm)
-
-
-class AnomalyDetector(abc.ABC):
+class AnomalyDetector(abc.ABC, Configurable):
 
   def __init__(self,
                model_id: Optional[str] = None,
@@ -148,7 +156,7 @@ class AnomalyDetector(abc.ABC):
     self._features = features
     self._target = target
     self._threshold_criterion = threshold_criterion
-    self._initialize_model = initialize_model
+    self._init_model = initialize_model
 
   @abc.abstractmethod
   def learn_one(self, x: beam.Row) -> None:
@@ -157,3 +165,24 @@ class AnomalyDetector(abc.ABC):
   @abc.abstractmethod
   def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
+
+class EnsembleAnomalyDetector(AnomalyDetector):
+  def __init__(self,
+               n: int = 10,
+               aggregation_strategy: Optional[AggregationFn] = None,
+               learners: Optional[List[AnomalyDetector]] = None,
+               **kwargs):
+    self._n = n
+    self._aggregation_strategy = aggregation_strategy
+    self._learners = learners
+    if self._learners:
+      self._n = len(self._learners)
+
+    super().__init__(**kwargs)
+
+  def learn_one(self, x: beam.Row) -> None:
+    pass
+
+  def score_one(self, x: beam.Row) -> float:
+    pass
+

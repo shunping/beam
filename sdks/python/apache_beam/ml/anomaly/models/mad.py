@@ -24,21 +24,38 @@ from apache_beam.ml.anomaly.univariate import EPSILON
 class MedianAbsoluteDeviation(AnomalyDetector):
   def __init__(self, window_size=10, scale_factor=0.67449, **kwargs):
     super().__init__(**kwargs)
-    self._median_tracker = univariate.SimpleMedianTracker(window_size)
-    self._mad_tracker = univariate.SimpleMADTracker(window_size)
+    self._window_size = window_size
     self._scale_factor = scale_factor
+
+    self._median_tracker = None
+    self._mad_tracker = None
+
+    if self._init_model:
+      self.initialize()
+
+  def initialize(self):
+    self._median_tracker = univariate.SimpleMedianTracker(self._window_size)
+    self._mad_tracker = univariate.SimpleMADTracker(self._window_size)
 
   def learn_one(self, x: beam.Row) -> None:
     assert len(x.__dict__) == 1, "MAD requires univariate input"
+    assert self._median_tracker
+    assert self._mad_tracker
+
     v = next(iter(x))
     self._median_tracker.push(v)
     self._mad_tracker.push(v)
 
   def score_one(self, x: beam.Row) -> float:
     assert len(x.__dict__) == 1, "MAD requires univariate input"
+    assert self._median_tracker
+    assert self._mad_tracker
+
     v = next(iter(x))
     median = self._median_tracker.get()
     mad = self._mad_tracker.get()
     if mad < EPSILON:
       return float('NaN')
     return abs((v - median) / mad * self._scale_factor)
+
+AnomalyDetector.register("mad", MedianAbsoluteDeviation)

@@ -15,22 +15,17 @@
 # limitations under the License.
 #
 
-import inspect
 import math
 
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyDetector
-from apache_beam.ml.anomaly.base import AnomalyDetectorConfig
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
 class StandardAbsoluteDeviation(AnomalyDetector):
 
-  def __init__(self,
-               sub_stat="mean",
-               window_size=10,
-               **kwargs):
+  def __init__(self, sub_stat="mean", window_size=10, **kwargs):
     super().__init__(**kwargs)
     self._window_size = window_size
     self._sub_stat = sub_stat
@@ -38,7 +33,7 @@ class StandardAbsoluteDeviation(AnomalyDetector):
     self._sub_stat_tracker = None
     self._stdev_tracker = None
 
-    if self._initialize_model:
+    if self._init_model:
       self.initialize()
 
   def initialize(self):
@@ -72,30 +67,5 @@ class StandardAbsoluteDeviation(AnomalyDetector):
       return 0.0
     return abs((v - sub_stat) / stdev)
 
-  def to_config(self) -> AnomalyDetectorConfig:
-    algorithm_args = {}
-    args = inspect.getfullargspec(self.__init__).args
-    for arg in args:
-      if hasattr(self, f"_{arg}"):
-        algorithm_args[arg] = getattr(self, f"_{arg}")
 
-    if self._threshold_criterion is not None:
-      threshold_criterion = self._threshold_criterion.to_config()
-    else:
-      threshold_criterion = None
-
-    return AnomalyDetectorConfig(
-        algorithm="sad",
-        algorithm_args=algorithm_args,
-        model_id=self._model_id,
-        features=self._features,
-        target=self._target,
-        threshold_criterion=threshold_criterion)
-
-
-# s = StandardAbsoluteDeviation(
-#     window_size=100,
-#     features=["a"],
-#     target="b",
-#     threshold_criterion=FixedThreshold(10))
-# print(s.to_config())
+AnomalyDetector.register("sad", StandardAbsoluteDeviation)

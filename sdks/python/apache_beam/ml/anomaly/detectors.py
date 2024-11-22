@@ -24,9 +24,9 @@ from typing import List
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, match_args=False)
 class AnomalyDetectorConfig():
-  algorithm: str
+  type: str
   algorithm_args: Optional[dict[str, Any]] = None
   model_id: Optional[str] = None
   features: Optional[List[str]] = None
@@ -34,12 +34,17 @@ class AnomalyDetectorConfig():
   threshold_criterion: Optional[dict[str, Any]] = None
 
   def __post_init__(self):
-    canonical_alg = self.algorithm.lower()
+    canonical_alg = self.type.lower()
     if canonical_alg not in KNOWN_ALGORITHMS:
-      raise NotImplementedError(f"Algorithm '{self.algorithm}' not found")
+      raise NotImplementedError(f"Algorithm '{self.type}' not found")
+    object.__setattr__(self, 'type', canonical_alg)
 
     if not self.model_id:
-      object.__setattr__(self, 'model_id', self.algorithm)
+      object.__setattr__(self, 'model_id', self.type)
+
+    if self.algorithm_args:
+      for key, value in self.algorithm_args.items():
+        object.__setattr__(self, key, value)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -69,3 +74,16 @@ class EnsembleAnomalyDetectorConfig(AnomalyDetectorConfig):
 
     if not self.model_id:
       object.__setattr__(self, 'model_id', "ensemble")
+
+
+from apache_beam.ml.anomaly.base import AnomalyDetector
+from apache_beam.ml.anomaly.models.sad import StandardAbsoluteDeviation
+from apache_beam.ml.anomaly.thresholds import FixedThreshold
+
+
+AnomalyDetector.register("sad", StandardAbsoluteDeviation)
+
+a = StandardAbsoluteDeviation(model_id="123", window_size=100, threshold_criterion=FixedThreshold(3))
+print(a.to_config())
+
+

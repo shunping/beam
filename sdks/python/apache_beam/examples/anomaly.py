@@ -5,8 +5,10 @@ import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AverageScore
 #from apache_beam.ml.anomaly.aggregations import MajorityVote
 from apache_beam.ml.anomaly.aggregations import AnyVote
-from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
+# from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
+from apache_beam.ml.anomaly.models.sad import StandardAbsoluteDeviation
+from apache_beam.ml.anomaly.models.mad import MedianAbsoluteDeviation
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
 from apache_beam.ml.anomaly.thresholds import QuantileThreshold
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
@@ -39,22 +41,31 @@ def run(argv=None, save_main_session=True):
   ]
 
   detectors = []
-  detectors.append(
-      AnomalyDetectorConfig(
-          algorithm="SAD",
-          features=["x1"],
-          #threshold_criterion={"type": "fixed", "cutoff": 5},
-          model_id="sad_x1"
-      ))
+#   detectors.append(
+#       AnomalyDetectorConfig(
+#           type="SAD",
+#           algorithm_args={"window_size": 1000},
+#           features=["x1"],
+#           #threshold_criterion={"type": "fixed", "cutoff": 5},
+#           model_id="sad_x1",
+#       ))
 
-  from apache_beam.ml.anomaly.models.sad import StandardAbsoluteDeviation
   detectors.append(
       StandardAbsoluteDeviation(
           window_size=1000,
           features=["x2"],
-          #threshold_criterion=QuantileThreshold(0.99),
+          threshold_criterion=QuantileThreshold(0.99),
           model_id="sad_x2"
       ))
+
+  detectors.append(
+      MedianAbsoluteDeviation(
+          window_size=50,
+          features=["x1"],
+          threshold_criterion=FixedThreshold(3),
+          model_id="mad_x1"
+      )
+  )
 #   detectors.append(
 #       AnomalyDetectorConfig(
 #           algorithm="SAD",
