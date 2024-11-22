@@ -15,11 +15,13 @@
 # limitations under the License.
 #
 
+import inspect
 import math
 
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyDetector
+from apache_beam.ml.anomaly.base import AnomalyDetectorConfig
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
@@ -28,28 +30,40 @@ class StandardAbsoluteDeviation(AnomalyDetector):
   def __init__(self,
                sub_stat="mean",
                window_size=10,
-               sub_stat_tracker=None,
                **kwargs):
     super().__init__(**kwargs)
-    if sub_stat_tracker is None:
-      if sub_stat == 'mean':
-        self._sub_stat_tracker = univariate.SimpleMeanTracker(window_size)
-      elif sub_stat == 'median':
-        self._sub_stat_tracker = univariate.SimpleMedianTracker(window_size)
-      else:
-        raise ValueError(f"unknown sub_stat {sub_stat}")
-    else:
-      self._sub_stat_tracker = sub_stat_tracker
+    self._window_size = window_size
+    self._sub_stat = sub_stat
 
-    self._stdev_tracker = univariate.SimpleStdevTracker(window_size)
+    self._sub_stat_tracker = None
+    self._stdev_tracker = None
+
+    if self._initialize_model:
+      self.initialize()
+
+  def initialize(self):
+    if self._sub_stat == 'mean':
+      self._sub_stat_tracker = univariate.SimpleMeanTracker(self._window_size)
+    elif self._sub_stat == 'median':
+      self._sub_stat_tracker = univariate.SimpleMedianTracker(self._window_size)
+    else:
+      raise ValueError(f"unknown sub_stat {self._sub_stat}")
+
+    self._stdev_tracker = univariate.SimpleStdevTracker(self._window_size)
 
   def learn_one(self, x: beam.Row) -> None:
     assert len(x.__dict__) == 1, "SAD requires univariate input"
+    assert self._sub_stat_tracker is not None
+    assert self._stdev_tracker is not None
+
     v = next(iter(x))
     self._stdev_tracker.push(v)
     self._sub_stat_tracker.push(v)
 
   def score_one(self, x: beam.Row) -> float:
+    assert self._sub_stat_tracker is not None
+    assert self._stdev_tracker is not None
+
     assert len(x.__dict__) == 1, "SAD requires univariate input"
     v = next(iter(x))
     sub_stat = self._sub_stat_tracker.get()
@@ -57,3 +71,31 @@ class StandardAbsoluteDeviation(AnomalyDetector):
     if math.isnan(stdev) or abs(stdev) < EPSILON:
       return 0.0
     return abs((v - sub_stat) / stdev)
+
+  def to_config(self) -> AnomalyDetectorConfig:
+    algorithm_args = {}
+    args = inspect.getfullargspec(self.__init__).args
+    for arg in args:
+      if hasattr(self, f"_{arg}"):
+        algorithm_args[arg] = getattr(self, f"_{arg}")
+
+    if self._threshold_criterion is not None:
+      threshold_criterion = self._threshold_criterion.to_config()
+    else:
+      threshold_criterion = None
+
+    return AnomalyDetectorConfig(
+        algorithm="sad",
+        algorithm_args=algorithm_args,
+        model_id=self._model_id,
+        features=self._features,
+        target=self._target,
+        threshold_criterion=threshold_criterion)
+
+
+# s = StandardAbsoluteDeviation(
+#     window_size=100,
+#     features=["a"],
+#     target="b",
+#     threshold_criterion=FixedThreshold(10))
+# print(s.to_config())

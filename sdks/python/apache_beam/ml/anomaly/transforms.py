@@ -28,8 +28,8 @@ from apache_beam.ml.anomaly import thresholds
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import AggregationFunc
-from apache_beam.ml.anomaly.base import ThresholdFunc
+from apache_beam.ml.anomaly.base import AggregationFn
+from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
@@ -70,7 +70,8 @@ class _ScoreAndLearn(beam.DoFn):
           "features": self._detector.features,
           "target": self._detector.target
       })
-      self._underlying: AnomalyDetector = model_class(**kwargs)
+      self._underlying: AnomalyDetector = model_class(
+          initialize_model=True, **kwargs)
 
     yield k1, (k2,
                AnomalyResult(
@@ -84,9 +85,7 @@ class _ScoreAndLearn(beam.DoFn):
 
 class _RunThresholdCriterion(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
-                    beam.PCollection[Tuple[Any,
-                                           Tuple[Any,
-                                                 AnomalyResult]]]]):
+                    beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
 
   def __init__(self, model_id, threshold_criterion):
     self._model_id = model_id
@@ -95,17 +94,17 @@ class _RunThresholdCriterion(
   def expand(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
-    if self._threshold_criterion:
-      if self._threshold_criterion.is_stateful:
+
+    threshold_fn = ThresholdFn.from_config(self._threshold_criterion)
+    if threshold_fn:
+      if threshold_fn.is_stateful:
         postprocess_result = (
             input
-            | beam.ParDo(
-                thresholds.StatefulThresholdDoFn(self._threshold_criterion)))
+            | beam.ParDo(thresholds.StatefulThresholdDoFn(threshold_fn)))
       else:
         postprocess_result = (
             input
-            | beam.ParDo(
-                thresholds.StatelessThresholdDoFn(self._threshold_criterion)))
+            | beam.ParDo(thresholds.StatelessThresholdDoFn(threshold_fn)))
     else:
       postprocess_result: Any = input
 
@@ -114,9 +113,7 @@ class _RunThresholdCriterion(
 
 class _RunOneDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
-                    beam.PCollection[Tuple[Any,
-                                           Tuple[Any,
-                                                 AnomalyResult]]]]):
+                    beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
 
   def __init__(self, detector):
     self._detector = detector
@@ -139,9 +136,7 @@ class _RunOneDetector(
 
 class _RunEnsembleDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
-                    beam.PCollection[Tuple[Any,
-                                           Tuple[Any,
-                                                 AnomalyResult]]]]):
+                    beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
 
   def __init__(self, ensemble_detector: EnsembleAnomalyDetectorConfig):
     self._ensemble_detector = ensemble_detector
@@ -174,21 +169,24 @@ class _RunEnsembleDetector(
     if self._ensemble_detector.aggregation_strategy is not None:
       # if no model_override is set in the aggregation function, use
       # model id locally in the instance
-      if getattr(self._ensemble_detector.aggregation_strategy,
-                 "_model_override") is None:
-        setattr(self._ensemble_detector.aggregation_strategy, "_model_override",
+      print(self._ensemble_detector.aggregation_strategy)
+
+      aggregation_strategy = AggregationFn.from_config(
+          self._ensemble_detector.aggregation_strategy)
+      if getattr(aggregation_strategy, "_model_override") is None:
+        setattr(aggregation_strategy, "_model_override",
                 self._ensemble_detector.model_id)
       ret = (
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0]), v[1]))
           | beam.GroupByKey()
-          | beam.MapTuple(
-              lambda k, v, agg=self._ensemble_detector.aggregation_strategy:
-              (k[0], (k[1],
-                      AnomalyResult(
-                          example=v[0].example,
-                          prediction=agg.apply([result.prediction for result in v])))
-              )).with_output_types(Tuple[Any, Tuple[Any, AnomalyResult]]))
+          | f"Run Aggregation Strategy ({model_uuid})" >>
+          beam.MapTuple(lambda k, v, agg=aggregation_strategy: (k[0], (
+              k[1],
+              AnomalyResult(
+                  example=v[0].example,
+                  prediction=agg.apply([result.prediction for result in v])
+              )))).with_output_types(Tuple[Any, Tuple[Any, AnomalyResult]]))
 
     ret = (
         ret | f"Run Threshold Criterion ({model_uuid})" >>
@@ -205,21 +203,26 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
   def __init__(
       self,
       detectors: Iterable[AnomalyDetectorConfig],
-      aggregation_strategy: Optional[AggregationFunc] = None,
-      threshold_criterion: Optional[ThresholdFunc] = None,
+      aggregation_strategy: Optional[AggregationFn] = None,
+      threshold_criterion: Optional[ThresholdFn] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
+    detector_configs = [
+        detector if isinstance(detector, AnomalyDetectorConfig) else
+        detector.to_config() for detector in detectors
+    ]
     self._root = EnsembleAnomalyDetectorConfig(
         algorithm="ensemble",
         model_id=root_model_id,
-        learners=detectors,  # type: ignore
-        aggregation_strategy=aggregation_strategy,
-        threshold_criterion=threshold_criterion)
+        learners=detector_configs,  # type: ignore
+        aggregation_strategy=aggregation_strategy.to_config()
+        if aggregation_strategy else None,
+        threshold_criterion=threshold_criterion.to_config()
+        if threshold_criterion else None)
     object.__setattr__(self._root, "model_id", root_model_id)
 
   def maybe_add_key(
-      self, element: Tuple[Any,
-                           beam.Row]) -> Tuple[Any, Tuple[Any, beam.Row]]:
+      self, element: Tuple[Any, beam.Row]) -> Tuple[Any, Tuple[Any, beam.Row]]:
     key, row = element
     return key, (timestamp.Timestamp.now().micros, row)
 
@@ -233,9 +236,8 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
         | "Add temp key" >> beam.Map(self.maybe_add_key)
         | _RunEnsembleDetector(self._root))
 
-    remove_temp_key_func: Callable[
-        [Any, Tuple[Any, AnomalyResult]],
-        Tuple[Any, AnomalyResult]] = lambda k, v: (k, v[1])
+    remove_temp_key_func: Callable[[Any, Tuple[Any, AnomalyResult]], Tuple[
+        Any, AnomalyResult]] = lambda k, v: (k, v[1])
     ret = ret | "Remove temp key" >> beam.MapTuple(remove_temp_key_func)
 
     return ret

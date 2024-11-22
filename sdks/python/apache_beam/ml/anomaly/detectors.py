@@ -21,8 +21,6 @@ from typing import Any
 from typing import Optional
 from typing import List
 
-from apache_beam.ml.anomaly.base import AggregationFunc
-from apache_beam.ml.anomaly.base import ThresholdFunc
 from apache_beam.ml.anomaly.models import KNOWN_ALGORITHMS
 
 
@@ -33,7 +31,7 @@ class AnomalyDetectorConfig():
   model_id: Optional[str] = None
   features: Optional[List[str]] = None
   target: Optional[str] = None
-  threshold_criterion: Optional[ThresholdFunc] = None
+  threshold_criterion: Optional[dict[str, Any]] = None
 
   def __post_init__(self):
     canonical_alg = self.algorithm.lower()
@@ -47,7 +45,7 @@ class AnomalyDetectorConfig():
 @dataclasses.dataclass(frozen=True)
 class EnsembleAnomalyDetectorConfig(AnomalyDetectorConfig):
   n: int = 10
-  aggregation_strategy: Optional[AggregationFunc] = None
+  aggregation_strategy: Optional[dict[str, Any]] = None
   learners: Optional[List[AnomalyDetectorConfig]] = None
 
   def __post_init__(self):

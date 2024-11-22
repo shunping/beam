@@ -22,41 +22,30 @@ from typing import Callable
 from typing import Iterable
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.base import AggregationFunc
+from apache_beam.ml.anomaly.base import AggregationFn
 
 
-class SimpleLabelAggregation(AggregationFunc):
-  def __init__(
-      self,
-      agg_func: Callable[[Iterable[int]], int],
-      include_history: bool = False):
-    self._agg_func = agg_func
+class LabelAggregation(AggregationFn):
+
+  def __init__(self,
+               agg_func: Callable[[Iterable[int]], int],
+               include_history: bool = False):
+    self._agg = agg_func
     self._include_history = include_history
     self._model_override = None
 
-class SimpleScoreAggregation(AggregationFunc):
-  def __init__(
-      self,
-      agg_func: Callable[[Iterable[float]], float],
-      include_history: bool = False):
-    self._agg_func = agg_func
-    self._include_history = include_history
-    self._model_override = None
-
-
-class LabelAggregation(SimpleLabelAggregation):
-  def apply(
-      self, predictions: Iterable[AnomalyPrediction]
-  ) -> AnomalyPrediction:
+  def apply(self,
+            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     labels = [
-        prediction.label for prediction in predictions
+        prediction.label
+        for prediction in predictions
         if prediction.label is not None
     ]
 
     if len(labels) == 0:
       return AnomalyPrediction(model_id=self._model_override)
 
-    label = self._agg_func(labels)
+    label = self._agg(labels)
 
     history = list(predictions) if self._include_history else None
 
@@ -64,10 +53,17 @@ class LabelAggregation(SimpleLabelAggregation):
         model_id=self._model_override, label=label, agg_history=history)
 
 
-class ScoreAggregation(SimpleScoreAggregation):
-  def apply(
-      self, predictions: Iterable[AnomalyPrediction]
-  ) -> AnomalyPrediction:
+class ScoreAggregation(AggregationFn):
+
+  def __init__(self,
+               agg_func: Callable[[Iterable[float]], float],
+               include_history: bool = False):
+    self._agg = agg_func
+    self._include_history = include_history
+    self._model_override = None
+
+  def apply(self,
+            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     scores = [
         prediction.score
         for prediction in predictions
@@ -78,7 +74,7 @@ class ScoreAggregation(SimpleScoreAggregation):
     if len(scores) == 0:
       return AnomalyPrediction(model_id=self._model_override)
 
-    score = self._agg_func(scores)
+    score = self._agg(scores)
 
     history = list(predictions) if self._include_history else None
 
@@ -86,45 +82,78 @@ class ScoreAggregation(SimpleScoreAggregation):
         model_id=self._model_override, score=score, agg_history=history)
 
 
-def MajorityVote(
-    normal_label=0,
-    outlier_label=1,
-    tie_breaker=0,
-    **kwargs) -> LabelAggregation:
-  def inner(predictions: Iterable[int]) -> int:
-    counters = collections.Counter(predictions)
-    if counters[normal_label] < counters[outlier_label]:
-      vote = outlier_label
-    elif counters[normal_label] > counters[outlier_label]:
-      vote = normal_label
-    else:
-      vote = tie_breaker
-    return vote
+class MajorityVote(LabelAggregation):
 
-  return LabelAggregation(inner, **kwargs)
+  def __init__(self, normal_label=0, outlier_label=1, tie_breaker=1, **kwargs):
+    self._tie_breaker = tie_breaker
+    self._normal_label = normal_label
+    self._outlier_label = outlier_label
+
+    def inner(predictions: Iterable[int]) -> int:
+      counters = collections.Counter(predictions)
+      if counters[self._normal_label] < counters[self._outlier_label]:
+        vote = self._outlier_label
+      elif counters[self._normal_label] > counters[self._outlier_label]:
+        vote = self._normal_label
+      else:
+        vote = self._tie_breaker
+      return vote
+
+    super().__init__(agg_func=inner, **kwargs)
+
+
+AggregationFn.register("majority_vote", MajorityVote)
 
 
 # And scheme
-def AllVote(normal_label=0, outlier_label=1, **kwargs) -> LabelAggregation:
-  def inner(predictions: Iterable[int]) -> int:
-    return outlier_label if all(
-        map(lambda p: p == outlier_label, predictions)) else normal_label
+class AllVote(LabelAggregation):
 
-  return LabelAggregation(inner, **kwargs)
+  def __init__(self, normal_label=0, outlier_label=1, **kwargs):
+    self._normal_label = normal_label
+    self._outlier_label = outlier_label
+
+    def inner(predictions: Iterable[int]) -> int:
+      return self._outlier_label if all(
+          map(lambda p: p == self._outlier_label,
+              predictions)) else self._normal_label
+
+    super().__init__(agg_func=inner, **kwargs)
+
+
+AggregationFn.register("all_vote", AllVote)
 
 
 # Or scheme
-def AnyVote(normal_label=0, outlier_label=1, **kwargs) -> LabelAggregation:
-  def inner(predictions: Iterable[int]) -> int:
-    return outlier_label if any(
-        map(lambda p: p == outlier_label, predictions)) else normal_label
+class AnyVote(LabelAggregation):
 
-  return LabelAggregation(inner, **kwargs)
+  def __init__(self, normal_label=0, outlier_label=1, **kwargs):
+    self._normal_label = normal_label
+    self._outlier_label = outlier_label
+
+    def inner(predictions: Iterable[int]) -> int:
+      return self._outlier_label if any(
+          map(lambda p: p == self._outlier_label,
+              predictions)) else self._normal_label
+
+    super().__init__(agg_func=inner, **kwargs)
 
 
-def AverageScore(**kwargs) -> ScoreAggregation:
-  return ScoreAggregation(statistics.mean, **kwargs)
+AggregationFn.register("any_vote", AnyVote)
 
 
-def MaxScore(**kwargs) -> ScoreAggregation:
-  return ScoreAggregation(max, **kwargs)
+class AverageScore(ScoreAggregation):
+
+  def __init__(self, **kwargs):
+    super().__init__(agg_func=statistics.mean, **kwargs)
+
+
+AggregationFn.register("average_score", AverageScore)
+
+
+class MaxScore(ScoreAggregation):
+
+  def __init__(self, **kwargs):
+    super().__init__(agg_func=max, **kwargs)
+
+
+AggregationFn.register("max_score", MaxScore)

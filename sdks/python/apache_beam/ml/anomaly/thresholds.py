@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+
 import copy
 import dataclasses
 from typing import Any
@@ -26,12 +28,13 @@ import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.base import ThresholdFunc
+from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
-  def __init__(self, threshold_func: ThresholdFunc):
+
+  def __init__(self, threshold_func: ThresholdFn):
     self._threshold_func = threshold_func
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
@@ -45,7 +48,8 @@ class BaseThresholdDoFn(beam.DoFn):
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
-  def __init__(self, threshold_func: ThresholdFunc):
+
+  def __init__(self, threshold_func: ThresholdFn):
     assert not threshold_func.is_stateful, \
       "This DoFn can only take stateless function as threshold_func"
     self._threshold_func = threshold_func
@@ -59,16 +63,15 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
 class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self, threshold_func: ThresholdFunc):
+  def __init__(self, threshold_func: ThresholdFn):
     assert threshold_func.is_stateful, \
       "This DoFn can only take stateful function as threshold_func"
     self._original_func = threshold_func
 
-  def process(
-      self,
-      element: Tuple[Any, Tuple[Any, AnomalyResult]],
-      threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
-      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
+  def process(self,
+              element: Tuple[Any, Tuple[Any, AnomalyResult]],
+              threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
     self._threshold_func = threshold_state.read()  # type: ignore
@@ -80,10 +83,11 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
     threshold_state.write(self._threshold_func)  # type: ignore
 
 
-class FixedThreshold(ThresholdFunc):
-  def __init__(self, threshold: float, **kwargs):
+class FixedThreshold(ThresholdFn):
+
+  def __init__(self, cutoff: float, **kwargs):
     super().__init__(**kwargs)
-    self._threshold = threshold
+    self._cutoff = cutoff
 
   @property
   def is_stateful(self) -> bool:
@@ -91,16 +95,20 @@ class FixedThreshold(ThresholdFunc):
 
   @property
   def threshold(self) -> float:
-    return self._threshold
+    return self._cutoff
 
   def apply(self, score: Optional[float]) -> int:
-    if score is None or score < self._threshold:  # type: ignore
+    if score is None or score < self.threshold:  # type: ignore
       return self._normal_label
 
     return self._outlier_label
 
 
-class QuantileThreshold(ThresholdFunc):
+ThresholdFn.register("fixed", FixedThreshold)
+
+
+class QuantileThreshold(ThresholdFn):
+
   def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)
     self._quantile = quantile
@@ -123,3 +131,6 @@ class QuantileThreshold(ThresholdFunc):
       return self._normal_label
 
     return self._outlier_label
+
+
+ThresholdFn.register("quantile", QuantileThreshold)

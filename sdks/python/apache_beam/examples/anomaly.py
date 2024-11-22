@@ -3,10 +3,12 @@ import logging
 
 import apache_beam as beam
 from apache_beam.ml.anomaly.aggregations import AverageScore
+#from apache_beam.ml.anomaly.aggregations import MajorityVote
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
 from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
+from apache_beam.ml.anomaly.thresholds import QuantileThreshold
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
@@ -41,29 +43,38 @@ def run(argv=None, save_main_session=True):
       AnomalyDetectorConfig(
           algorithm="SAD",
           features=["x1"],
-          threshold_criterion=FixedThreshold(3),
-          #id="sad_x1"
+          #threshold_criterion={"type": "fixed", "cutoff": 5},
+          model_id="sad_x1"
       ))
+
+  from apache_beam.ml.anomaly.models.sad import StandardAbsoluteDeviation
   detectors.append(
-      AnomalyDetectorConfig(
-          algorithm="SAD",
+      StandardAbsoluteDeviation(
+          window_size=1000,
           features=["x2"],
-          threshold_criterion=FixedThreshold(2),
-          model_id="sad_x2"))
-  detectors.append(
-      EnsembleAnomalyDetectorConfig(
-          n=3,
-          algorithm="loda",
-          model_id="ensemble-loda",
-          features=["x1", "x2"],
-          aggregation_strategy=AverageScore()))
-  detectors.append(
-      EnsembleAnomalyDetectorConfig(
-          n=3,
-          algorithm="loda",
-          #model_id="ensemble-loda",
-          features=["x1", "x2"],
-          aggregation_strategy=AverageScore()))
+          #threshold_criterion=QuantileThreshold(0.99),
+          model_id="sad_x2"
+      ))
+#   detectors.append(
+#       AnomalyDetectorConfig(
+#           algorithm="SAD",
+#           features=["x2"],
+#           threshold_criterion=FixedThreshold(2),
+#           model_id="sad_x2"))
+#   detectors.append(
+#       EnsembleAnomalyDetectorConfig(
+#           n=3,
+#           algorithm="loda",
+#           model_id="ensemble-loda",
+#           features=["x1", "x2"],
+#           aggregation_strategy=AverageScore()))
+#   detectors.append(
+#       EnsembleAnomalyDetectorConfig(
+#           n=3,
+#           algorithm="loda",
+#           #model_id="ensemble-loda",
+#           features=["x1", "x2"],
+#           aggregation_strategy=AverageScore()))
 
   # The pipeline will be run on exiting the with block.
   with beam.Pipeline(options=pipeline_options) as p:
@@ -73,7 +84,8 @@ def run(argv=None, save_main_session=True):
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(
             detectors,
-            aggregation_strategy=AnyVote(include_history=False)
+            aggregation_strategy=AverageScore(include_history=True),
+            threshold_criterion=FixedThreshold(2)
         )
         | beam.Map(logging.info))
 

@@ -14,12 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 """Base classes for anomaly detection"""
 from __future__ import annotations
 
 import abc
+import dataclasses
 from dataclasses import dataclass
+import inspect
+import logging
+from typing import Any
 from typing import Iterable
 from typing import Optional
 
@@ -42,24 +45,52 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
-class AnomalyDetector(abc.ABC):
-  def __init__(
-      self,
-      features: Optional[Iterable[str]] = None,
-      target: Optional[str] = None):
-    self._features = features
-    self._target = target
+class Configurable():
+  _known_subclasses = {}
+  _key = None
 
-  @abc.abstractmethod
-  def learn_one(self, x: beam.Row) -> None:
-    raise NotImplementedError
+  @classmethod
+  def register(cls, name, subclass) -> None:
+    cls._known_subclasses[name] = subclass
+    subclass._key = name
 
-  @abc.abstractmethod
-  def score_one(self, x: beam.Row) -> float:
-    raise NotImplementedError
+  @classmethod
+  def from_config(cls, config) -> Optional[Configurable]:
+    if config is None:
+      return None
+
+    if "type" not in config:
+      raise NotImplementedError(f"Type not found in config {config}")
+
+    subclass = cls._known_subclasses.get(config["type"], None)
+    if subclass is None:
+      raise NotImplementedError(f"Unknown config type in config {config}")
+
+    config.pop("type")
+    return subclass(**config)
+
+  def to_config(self) -> dict[str, Any]:
+    if self.__class__._key is None:
+      raise ValueError(f"Class {self.__class__.__name__} is not registered.")
+
+    config = {"type": self.__class__._key}
+
+    args = []
+    for cls in self.__class__.mro():
+      args.extend(inspect.getfullargspec(cls.__init__).args)
+
+    for arg in set(args):
+      if hasattr(self, f"_{arg}"):
+        config[arg] = getattr(self, f"_{arg}")
+      else:
+        logging.warning("Unable to find _%s in the object of %s", arg,
+                        self.__class__.__name__)
+
+    return config
 
 
-class ThresholdFunc(abc.ABC):
+class ThresholdFn(abc.ABC, Configurable):
+
   def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -79,9 +110,50 @@ class ThresholdFunc(abc.ABC):
     raise NotImplementedError
 
 
-class AggregationFunc(abc.ABC):
+class AggregationFn(abc.ABC, Configurable):
+
   @abc.abstractmethod
-  def apply(
-      self, predictions: Iterable[AnomalyPrediction]
-  ) -> AnomalyPrediction:
+  def apply(self,
+            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+    raise NotImplementedError
+
+
+@dataclasses.dataclass(frozen=True)
+class AnomalyDetectorConfig():
+  algorithm: str
+  algorithm_args: Optional[dict[str, Any]] = None
+  model_id: Optional[str] = None
+  features: Optional[Iterable[str]] = None
+  target: Optional[str] = None
+  threshold_criterion: Optional[dict[str, Any]] = None
+
+  # def __post_init__(self):
+  #   canonical_alg = self.algorithm.lower()
+  #   if canonical_alg not in KNOWN_ALGORITHMS:
+  #     raise NotImplementedError(f"Algorithm '{self.algorithm}' not found")
+
+  #   if not self.model_id:
+  #     object.__setattr__(self, 'model_id', self.algorithm)
+
+
+class AnomalyDetector(abc.ABC):
+
+  def __init__(self,
+               model_id: Optional[str] = None,
+               features: Optional[Iterable[str]] = None,
+               target: Optional[str] = None,
+               threshold_criterion: Optional[ThresholdFn] = None,
+               initialize_model=False):
+    self._model_id = model_id
+    self._features = features
+    self._target = target
+    self._threshold_criterion = threshold_criterion
+    self._initialize_model = initialize_model
+
+  @abc.abstractmethod
+  def learn_one(self, x: beam.Row) -> None:
+    raise NotImplementedError
+
+  @abc.abstractmethod
+  def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
