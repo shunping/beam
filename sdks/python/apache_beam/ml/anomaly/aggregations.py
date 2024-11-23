@@ -84,7 +84,7 @@ class ScoreAggregation(AggregationFn):
 
 class MajorityVote(LabelAggregation):
 
-  def __init__(self, normal_label=0, outlier_label=1, tie_breaker=1, **kwargs):
+  def __init__(self, normal_label=0, outlier_label=1, tie_breaker=0, **kwargs):
     self._tie_breaker = tie_breaker
     self._normal_label = normal_label
     self._outlier_label = outlier_label

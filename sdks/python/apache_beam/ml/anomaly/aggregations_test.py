@@ -93,13 +93,26 @@ class AverageScoreTest(unittest.TestCase):
 
     self.assertEqual(avg([]), AnomalyPrediction())
 
-    logging.error(avg([AnomalyPrediction(score=1)]))
     self.assertEqual(
         avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
 
     self.assertEqual(
         avg([AnomalyPrediction(score=1), AnomalyPrediction(score=2)]),
         AnomalyPrediction(score=1.5))
+
+
+class MaxScoreTest(unittest.TestCase):
+  def test_default(self):
+    avg = aggregations.MaxScore().apply
+
+    self.assertEqual(avg([]), AnomalyPrediction())
+
+    self.assertEqual(
+        avg([AnomalyPrediction(score=1)]), AnomalyPrediction(score=1))
+
+    self.assertEqual(
+        avg([AnomalyPrediction(score=1), AnomalyPrediction(score=2)]),
+        AnomalyPrediction(score=2))
 
 
 if __name__ == '__main__':

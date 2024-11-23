@@ -55,50 +55,27 @@ def run():
         INPUT, splittable=False) | beam.WithKeys(1)
     detectors = []
     detectors.append(
-        anomaly.AnomalyDetectorConfig(
-            algorithm="SAD",
-            # id="SAD_1",
+        anomaly.StandardAbsoluteDeviation(
             features=["feat_1"],
             target="label",
-            #threshold_func=anomaly.FixedThreshold(3),
-            threshold_criterion=anomaly.QuantileThreshold(0.95),
-        ))
+            threshold_func=anomaly.FixedThreshold(3)))
     detectors.append(
-        anomaly.AnomalyDetectorConfig(
-            algorithm="SAD",
-            model_id="SAD_2",
-            algorithm_args={"window_size": 50, "sub_stat": "median"},
+        anomaly.StandardAbsoluteDeviation(
             features=["feat_2"],
-            target="label"))
+            target="label",
+            window_size=50,
+            sub_stat="median",
+            threshold_criterion=anomaly.QuantileThreshold(0.95)))
     detectors.append(
-        anomaly.AnomalyDetectorConfig(
-            algorithm="MAD",
-            algorithm_args={"window_size": 50},
-            features=["feat_1"],
-            target="label"))
-    detectors.append(
-        anomaly.AnomalyDetectorConfig(
-            algorithm="MAD",
-            algorithm_args={"window_size": 50},
-            features=["feat_2"],
-            target="label"))
-    # detectors.append(
-    #     anomaly.AnomalyDetector(
-    #         algorithm="iLOF", features=["feat_1", "feat_2"], target="label"))
-    detectors.append(
-        anomaly.EnsembleAnomalyDetectorConfig(
+        anomaly.Loda(
             n=3,
-            algorithm="loda",
             features=["feat_1", "feat_2"],
-            target="label",
-            aggregation_strategy=anomaly.AverageScore()
-            # threshold_func=anomaly.QuantileThreshold(0.95),
-        ))
+            aggregation_strategy=anomaly.AverageScore()))
     results = (
         data_to_fit
         | anomaly.AnomalyDetection(
             detectors=detectors,
-            #aggregation_strategy=anomaly.AnyVote(model_override="final"),
+            aggregation_strategy=anomaly.AnyVote(),
         ))
 
     _ = results | beam.Map(debug_print)

@@ -25,8 +25,8 @@ from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
-from apache_beam.ml.anomaly.detectors import AnomalyDetectorConfig
-from apache_beam.ml.anomaly.detectors import EnsembleAnomalyDetectorConfig
+from apache_beam.ml.anomaly.detectors.sad import StandardAbsoluteDeviation
+from apache_beam.ml.anomaly.detectors.loda import Loda
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
 from apache_beam.ml.anomaly.thresholds import FixedThreshold
 from apache_beam.testing.test_pipeline import TestPipeline
@@ -62,8 +62,7 @@ class TestAnomalyDetection(unittest.TestCase):
     ]
     detectors = []
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
+        StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
@@ -107,14 +106,12 @@ class TestAnomalyDetection(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
+        StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
+        StandardAbsoluteDeviation(
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
             model_id="sad_x2"))
@@ -135,25 +132,23 @@ class TestAnomalyDetection(unittest.TestCase):
 
   def test_multiple_detectors_with_aggregation(self):
     aggregated = [
-        AnomalyPrediction(label=0),
-        AnomalyPrediction(label=0),
-        AnomalyPrediction(label=0),
-        AnomalyPrediction(label=0),
-        AnomalyPrediction(label=1),
-        AnomalyPrediction(label=1),
-        AnomalyPrediction(label=0),
+        AnomalyPrediction(model_id="root", label=0),
+        AnomalyPrediction(model_id="root", label=0),
+        AnomalyPrediction(model_id="root", label=0),
+        AnomalyPrediction(model_id="root", label=0),
+        AnomalyPrediction(model_id="root", label=1),
+        AnomalyPrediction(model_id="root", label=1),
+        AnomalyPrediction(model_id="root", label=0),
     ]
 
     detectors = []
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
+        StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
+        StandardAbsoluteDeviation(
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
             model_id="sad_x2"))
@@ -172,13 +167,13 @@ class TestAnomalyDetection(unittest.TestCase):
 
   def test_one_ensemble_detector(self):
     loda = [
-        AnomalyPrediction(model_id="ensemble", score=0),
-        AnomalyPrediction(model_id="ensemble", score=0),
-        AnomalyPrediction(model_id="ensemble", score=0),
-        AnomalyPrediction(model_id="ensemble", score=19.113827924639978),
-        AnomalyPrediction(model_id="ensemble", score=0.63651416837948),
-        AnomalyPrediction(model_id="ensemble", score=10.596634733159407),
-        AnomalyPrediction(model_id="ensemble", score=10.087370092015854),
+        AnomalyPrediction(model_id="loda", score=0),
+        AnomalyPrediction(model_id="loda", score=0),
+        AnomalyPrediction(model_id="loda", score=0),
+        AnomalyPrediction(model_id="loda", score=19.113827924639978),
+        AnomalyPrediction(model_id="loda", score=0.63651416837948),
+        AnomalyPrediction(model_id="loda", score=10.596634733159407),
+        AnomalyPrediction(model_id="loda", score=10.087370092015854),
     ]
 
     # fix a random seed since loda uses random projections
@@ -186,12 +181,7 @@ class TestAnomalyDetection(unittest.TestCase):
     np.random.seed(12345)
 
     detectors = []
-    detectors.append(
-        EnsembleAnomalyDetectorConfig(
-            algorithm="loda",
-            algorithm_args={"n_init": 2},
-            n=3,
-            aggregation_strategy=AverageScore()))
+    detectors.append(Loda(n_init=2, n=3, aggregation_strategy=AverageScore()))
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
@@ -211,12 +201,10 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
   def setUp(self):
     self._input = [(1, beam.Row(x1=1, x2=4))]
 
-  @parameterized.expand([
-                         [True, True, None], [True, True, "new_root"],
+  @parameterized.expand([[True, True, None], [True, True, "new_root"],
                          [True, False, None], [True, False, "new_root"],
                          [False, True, None], [False, True, "new_root"],
-                         [False, False, None], [False, False, "new_root"]
-                         ])
+                         [False, False, None], [False, False, "new_root"]])
   def test_model_id(self, use_threshold, use_aggregation, root_model_id):
     if use_threshold:
       threshold_func = FixedThreshold(3.0)
@@ -233,52 +221,58 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
 
     detectors = []
     detectors.append(
-        AnomalyDetectorConfig(
-            algorithm="SAD",
-            features=["x1"],
-            threshold_criterion=threshold_func))
+        StandardAbsoluteDeviation(
+            features=["x1"], threshold_criterion=threshold_func))
     detectors.append(
-        AnomalyDetectorConfig(
+        StandardAbsoluteDeviation(
             model_id="sad_x2",
-            algorithm="SAD",
             features=["x2"],
             threshold_criterion=threshold_func))
     detectors.append(
-        EnsembleAnomalyDetectorConfig(
-            algorithm="loda",
+        Loda(
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_func))
     detectors.append(
-        EnsembleAnomalyDetectorConfig(
+        Loda(
             model_id="ensemble_2",
             algorithm="loda",
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_func))
 
-    model_id_1 = detectors[0].model_id
-    self.assertEqual(model_id_1, "SAD")
+    model_id_1 = detectors[0]._model_id
+    self.assertEqual(model_id_1, "sad")
 
-    model_id_2 = detectors[1].model_id
+    model_id_2 = detectors[1]._model_id
     self.assertEqual(model_id_2, "sad_x2")
 
-    model_id_3 = detectors[2].model_id
-    self.assertEqual(model_id_3, "ensemble")
+    model_id_3 = detectors[2]._model_id
+    self.assertEqual(model_id_3, "loda")
 
-    model_id_4 = detectors[3].model_id
+    model_id_4 = detectors[3]._model_id
     self.assertEqual(model_id_4, "ensemble_2")
 
     if use_aggregation:
       # root_model_id is only used in aggregation
       if use_threshold:
-        predictions = [
-            AnomalyPrediction(model_id=root_model_id, label=0),
-        ]
+        if root_model_id is None:
+          predictions = [
+              AnomalyPrediction(model_id="root", label=0),
+          ]
+        else:
+          predictions = [
+              AnomalyPrediction(model_id=root_model_id, label=0),
+          ]
       else:
-        predictions = [
-            AnomalyPrediction(model_id=root_model_id, score=0),
-        ]
+        if root_model_id is None:
+          predictions = [
+              AnomalyPrediction(model_id="root", score=0),
+          ]
+        else:
+          predictions = [
+              AnomalyPrediction(model_id=root_model_id, score=0),
+          ]
     else:
       if use_threshold:
         predictions = [
@@ -316,8 +310,8 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
           equal_to([(input[0],
                      AnomalyResult(example=input[1], prediction=decision))
                     for input, decision in zip(
-                        self._input + self._input + self._input + self._input,
-                        predictions)]))
+                        self._input + self._input + self._input +
+                        self._input, predictions)]))
 
 
 if __name__ == '__main__':

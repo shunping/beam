@@ -26,6 +26,7 @@ import uuid
 import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import thresholds
+from apache_beam.ml.anomaly.base import Config
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
@@ -39,8 +40,9 @@ from apache_beam.utils import timestamp
 class _ScoreAndLearn(beam.DoFn):
   MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
-  def __init__(self, detector: AnomalyDetector):
-    self._detector = detector
+  def __init__(self, detector_config: Config):
+    self._detector_config = detector_config
+    self._detector_config.args["initialize_model"] =  True
     # object.__delattr__(self._detector, "algorithm_args")
     # self._canonical_alg = self._detector.type.lower()
     # if not self._canonical_alg in KNOWN_ALGORITHMS:
@@ -64,16 +66,13 @@ class _ScoreAndLearn(beam.DoFn):
     k1, (k2, data) = element
     self._underlying = model_state.read()  # type: ignore
     if self._underlying is None:
-      conf = self._detector.to_config()
-      assert conf.args is not None
-      conf.args["initialize_model"] =  True
-      self._underlying = AnomalyDetector.from_config(conf)
+      self._underlying = AnomalyDetector.from_config(self._detector_config)
 
     yield k1, (k2,
                AnomalyResult(
                    example=data,
                    prediction=AnomalyPrediction(
-                       model_id=self._detector._model_id,
+                       model_id=self._detector_config.args["model_id"],
                        score=self.score_and_learn(data))))
 
     model_state.write(self._underlying)  # type: ignore
@@ -124,7 +123,7 @@ class _RunOneDetector(
         input
         | beam.Reshuffle()
         | f"Score and Learn ({model_uuid})" >> beam.ParDo(
-            _ScoreAndLearn(self._detector)).with_output_types(
+            _ScoreAndLearn(self._detector.to_config())).with_output_types(
                 Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
             self._detector._model_id, self._detector._threshold_criterion))
@@ -206,18 +205,9 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
       threshold_criterion: Optional[ThresholdFn] = None,
       root_model_id: Optional[str] = None,
   ) -> None:
-    # detector_configs = [
-    #     detector if isinstance(detector, AnomalyDetectorConfig) else
-    #     detector.to_config() for detector in detectors
-    # ]
-    # self._root = EnsembleAnomalyDetectorConfig(
-    #     type="ensemble",
-    #     model_id=root_model_id,
-    #     learners=detector_configs,  # type: ignore
-    #     aggregation_strategy=aggregation_strategy.to_config()
-    #     if aggregation_strategy else None,
-    #     threshold_criterion=threshold_criterion.to_config()
-    #     if threshold_criterion else None)
+
+    if root_model_id is None:
+      root_model_id = "root"
     self._root = EnsembleAnomalyDetector(model_id=root_model_id,
                                          learners = detectors,
                                          threshold_criterion=threshold_criterion,

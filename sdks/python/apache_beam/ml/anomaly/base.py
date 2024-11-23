@@ -31,40 +31,41 @@ from typing import TypeVar
 
 import apache_beam as beam
 
-
-@dataclass(frozen=True)
-class AnomalyPrediction():
-  model_id: Optional[str] = None
-  score: Optional[float] = None
-  label: Optional[int] = None
-  threshold: Optional[float] = None
-  info: str = ""
-  agg_history: Optional[Iterable[AnomalyPrediction]] = None
-
-
-@dataclass(frozen=True)
-class AnomalyResult():
-  example: beam.Row
-  prediction: AnomalyPrediction
-
-
 ConfigT = TypeVar('ConfigT', bound='Configurable')
 
 
 @dataclasses.dataclass(frozen=True)
 class Config():
-  type: Optional[str] = None
-  args: Optional[dict[str, Any]] = None
+  type: str
+  args: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 class Configurable():
+  _skip_list = ["self"]
   _known_subclasses = {}
   _key = None
 
   @classmethod
   def register(cls, name, subclass) -> None:
+    if name in cls._known_subclasses:
+      raise ValueError(f"{name} is already registered for {subclass.__name__}")
     cls._known_subclasses[name] = subclass
     subclass._key = name
+
+  @classmethod
+  def unregister(cls, name) -> None:
+    if name in cls._known_subclasses:
+      del cls._known_subclasses[name]
+
+  @staticmethod
+  def _from_config_helper(v):
+    if isinstance(v, Config):
+      return Configurable.from_config(v)
+
+    if isinstance(v, List):
+      return [Configurable._from_config_helper(e) for e in v]
+
+    return v
 
   # TODO: change to Self (PEP 673) after the minimum python support of Beam
   # reaches 3.11.
@@ -81,13 +82,23 @@ class Configurable():
     if subclass is None:
       raise ValueError(f"Unknown config type in config {config}")
 
-    return subclass(**config.args)
+    args = {k:Configurable._from_config_helper(v) for k,v in config.args.items()}
+    return subclass(**args)
+
+  @staticmethod
+  def _to_config_helper(v):
+    v_class = v.__class__
+    if issubclass(v_class, Configurable):
+      return v.to_config()
+
+    if issubclass(v_class, List):
+      return [Configurable._to_config_helper(e) for e in v]
+
+    return v
 
   def to_config(self) -> Config:
     if self.__class__._key is None:
       raise ValueError(f"Class {self.__class__.__name__} is not registered.")
-
-    # config = {"type": self.__class__._key}
 
     args = []
     for cls in self.__class__.mro():
@@ -95,23 +106,34 @@ class Configurable():
 
     config_args = {}
     for arg in set(args):
+      if arg in self._skip_list:
+        continue
+
       if hasattr(self, f"_{arg}"):
         v = getattr(self, f"_{arg}")
-        if issubclass(v.__class__, Configurable):
-          config_args[arg] = v.to_config()
-        else:
-          config_args[arg] = v
+        config_args[arg] = Configurable._to_config_helper(v)
       else:
-        logging.debug("_%s not found in %s", arg, self.__class__.__name__)
+        logging.debug("_%s not found in the attributes of object %s", arg,
+                      self.__class__.__name__)
 
     ret = Config(type=self.__class__._key, args=config_args)
-    # field_types = {
-    #     (field.name, field.type) for field in dataclasses.fields(Config)
-    # }
-    # ConfigDataClass = dataclasses.make_dataclass(
-    #     f"{self.__class__.__name__}Config", field_types)
-    # ret = ConfigDataClass(type=ret.type, args=ret.args)
     return ret
+
+
+@dataclass(frozen=True)
+class AnomalyPrediction():
+  model_id: Optional[str] = None
+  score: Optional[float] = None
+  label: Optional[int] = None
+  threshold: Optional[float] = None
+  info: str = ""
+  agg_history: Optional[Iterable[AnomalyPrediction]] = None
+
+
+@dataclass(frozen=True)
+class AnomalyResult():
+  example: beam.Row
+  prediction: AnomalyPrediction
 
 
 class ThresholdFn(abc.ABC, Configurable):
@@ -152,7 +174,7 @@ class AnomalyDetector(abc.ABC, Configurable):
                threshold_criterion: Optional[ThresholdFn] = None,
                initialize_model=False,
                **kwargs):
-    self._model_id = model_id
+    self._model_id = model_id if model_id is not None else self._key
     self._features = features
     self._target = target
     self._threshold_criterion = threshold_criterion
@@ -180,10 +202,15 @@ class EnsembleAnomalyDetector(AnomalyDetector):
     if self._learners:
       self._n = len(self._learners)
 
+    if "model_id" not in kwargs:
+      kwargs["model_id"] = self._key if self._key is not None else "custom"
+
     super().__init__(**kwargs)
 
   def learn_one(self, x: beam.Row) -> None:
-    pass
+    raise NotImplementedError
 
   def score_one(self, x: beam.Row) -> float:
-    pass
+    raise NotImplementedError
+
+EnsembleAnomalyDetector.register("custom", EnsembleAnomalyDetector)
