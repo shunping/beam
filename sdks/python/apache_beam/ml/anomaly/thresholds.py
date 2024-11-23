@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+from typing import Any
+from typing import Iterable
 from typing import Optional
+from typing import Tuple
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
@@ -51,8 +54,8 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
       "This DoFn can only take stateless function as threshold_func"
     self._threshold_func = threshold_func
 
-  def process(self, element,
-              **kwargs):
+  def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
     yield k1, (k2, self._update_prediction(prediction))
 
@@ -66,9 +69,9 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
     self._original_func = threshold_func
 
   def process(self,
-              element,
+              element: Tuple[Any, Tuple[Any, AnomalyResult]],
               threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
-              **kwargs):
+              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
     self._threshold_func = threshold_state.read()  # type: ignore
@@ -131,3 +134,6 @@ class QuantileThreshold(ThresholdFn):
 
 
 ThresholdFn.register("quantile", QuantileThreshold)
+
+
+print(FixedThreshold(3).to_config())
