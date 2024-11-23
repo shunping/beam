@@ -174,7 +174,7 @@ class _RunEnsembleDetector(
 
       if getattr(aggregation_strategy, "_model_override") is None:
         setattr(aggregation_strategy, "_model_override",
-                self._ensemble_detector.model_id)
+                self._ensemble_detector._model_id)
       ret = (
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0]), v[1]))

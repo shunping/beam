@@ -19,16 +19,17 @@ import numpy as np
 
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyDetector
+from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly import univariate
 
 
 class LodaWeakLearner(AnomalyDetector):
-  def __init__(
-      self,
-      n_init=256,
-      histogram_tracker_class=None,
-      histogram_tracker_kwargs=None,
-      **kwargs):
+
+  def __init__(self,
+               n_init=256,
+               histogram_tracker_class=None,
+               histogram_tracker_kwargs=None,
+               **kwargs):
     super().__init__(**kwargs)
     if histogram_tracker_class is None:
       self._hist = univariate.SimpleHistogram(window_size=256, n_bins=256)
@@ -47,8 +48,8 @@ class LodaWeakLearner(AnomalyDetector):
       n_features = len(self._features)
       self._projection = np.random.randn(n_features)
       n_nonzero_dims = int(np.sqrt(n_features))
-      zero_idx = np.random.permutation(len(
-          self._features))[:(n_features - n_nonzero_dims)]
+      zero_idx = np.random.permutation(len(self._features))[:(n_features -
+                                                              n_nonzero_dims)]
       self._projection[zero_idx] = 0
 
     x_np = np.array([x.__dict__[k] for k in self._features])
@@ -73,3 +74,21 @@ class LodaWeakLearner(AnomalyDetector):
       y_pred = -np.log(histogram[inds])
 
     return float(y_pred)
+
+
+AnomalyDetector.register("loda-weak-learner", LodaWeakLearner)
+
+
+class Loda(EnsembleAnomalyDetector):
+
+  def __init__(self, n: int = 10, aggregation_strategy=None, **kwargs):
+    learners = []
+    for _ in range(n):
+      learners.append(LodaWeakLearner(**kwargs))
+    super().__init__(
+        n=n,
+        learners=learners,
+        aggregation_strategy=aggregation_strategy,
+        **kwargs)
+
+AnomalyDetector.register("loda", Loda)

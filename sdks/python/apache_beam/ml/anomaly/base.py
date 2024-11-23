@@ -102,8 +102,7 @@ class Configurable():
         else:
           config_args[arg] = v
       else:
-        logging.warning("Unable to find _%s in the object of %s", arg,
-                        self.__class__.__name__)
+        logging.debug("_%s not found in %s", arg, self.__class__.__name__)
 
     ret = Config(type=self.__class__._key, args=config_args)
     # field_types = {
@@ -151,7 +150,8 @@ class AnomalyDetector(abc.ABC, Configurable):
                features: Optional[Iterable[str]] = None,
                target: Optional[str] = None,
                threshold_criterion: Optional[ThresholdFn] = None,
-               initialize_model=False):
+               initialize_model=False,
+               **kwargs):
     self._model_id = model_id
     self._features = features
     self._target = target
@@ -166,7 +166,9 @@ class AnomalyDetector(abc.ABC, Configurable):
   def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
 
+
 class EnsembleAnomalyDetector(AnomalyDetector):
+
   def __init__(self,
                n: int = 10,
                aggregation_strategy: Optional[AggregationFn] = None,
@@ -185,4 +187,3 @@ class EnsembleAnomalyDetector(AnomalyDetector):
 
   def score_one(self, x: beam.Row) -> float:
     pass
-

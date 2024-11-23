@@ -20,12 +20,12 @@ from typing import Optional
 
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyDetector
-from apache_beam.ml.anomaly.models.sad import StandardAbsoluteDeviation
-from apache_beam.ml.anomaly.models.mad import MedianAbsoluteDeviation
-from apache_beam.ml.anomaly.models.loda import LodaWeakLearner
+from apache_beam.ml.anomaly.detectors.sad import StandardAbsoluteDeviation
+from apache_beam.ml.anomaly.detectors.mad import MedianAbsoluteDeviation
+from apache_beam.ml.anomaly.detectors.loda import LodaWeakLearner
 
 try:
-  from apache_beam.ml.anomaly.models.river import LocalOutlierFactor  # type: ignore
+  from apache_beam.ml.anomaly.detectors.river import LocalOutlierFactor  # type: ignore
 except ImportError:
   logging.warning("Unable to import river model 'LocalOutlierFactor'")
   LocalOutlierFactor = None
