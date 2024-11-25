@@ -42,7 +42,7 @@ class Config():
 
 class Configurable():
   _skip_list = ["self"]
-  _known_subclasses = {}
+  _known_subclasses = {}  # a mutable class variable, sharing by all subclasses
   _key = None
 
   @classmethod

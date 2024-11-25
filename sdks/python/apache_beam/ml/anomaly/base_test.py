@@ -17,14 +17,146 @@
 
 import logging
 import unittest
+from typing import List
+from typing import Optional
 
 from apache_beam.ml.anomaly.base import Config
+from apache_beam.ml.anomaly.base import Configurable
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 
 
-class TestConfiguration(unittest.TestCase):
-  pass
+class TestConfigurable(unittest.TestCase):
+  def testCallingRegisterOnBaseClass(self):
+
+    class NewStuff(Configurable):
+      pass
+
+    Configurable.register("new-stuff", NewStuff)
+
+    self.assertRaises(ValueError, Configurable.register, "new-stuff", NewStuff)
+
+    Configurable.register("new-stuff", NewStuff, False)
+
+    Configurable.unregister("new-stuff")
+    Configurable.register("new-stuff", NewStuff)
+    Configurable.unregister("new-stuff")
+
+  def testCallingRegisterOnSubClass(self):
+
+    class NewStuff(Configurable):
+      pass
+
+    NewStuff.register("new-stuff2", NewStuff)
+    self.assertRaises(ValueError, NewStuff.register, "new-stuff2", NewStuff)
+
+    NewStuff.register("new-stuff2", NewStuff, False)
+
+    NewStuff.unregister("new-stuff2")
+    NewStuff.register("new-stuff2", NewStuff)
+    NewStuff.unregister("new-stuff2")
+
+  def testCallingRegisterOnDifferentSubClass(self):
+
+    class Func_1(Configurable):
+      pass
+
+    class Func_2(Configurable):
+      pass
+
+    Func_1.register("my_func", Func_1)
+    # Func_1 and Func_2 sharing the same internal mutable class variable.
+    # They can not be registered with the same name.
+    self.assertRaises(ValueError, Func_2.register, "my_func", Func_2)
+    Func_1.unregister("my_func")
+
+  def testToConfigAndFromConfig(self):
+
+    class Person(Configurable):
+
+      def __init__(self, name: str, dad: Optional['Person'],
+                   mom: Optional['Person'], friends: Optional[List['Person']]):
+        self._name = name
+        self._dad = dad
+        self._mom = mom
+        self._friends = friends
+
+      def __eq__(self, value: 'Person') -> bool:
+        return self._name == value._name and self._dad == value._dad and \
+          self._mom == value._mom and self._friends == value._friends
+
+    dad = Person("Jack", None, None, None)
+    mom = Person("Mary", None, None, None)
+    friend_1 = Person("Kay", None, None, None)
+    friend_2 = Person("Amy", None, None, None)
+    child = Person("Susan", dad, mom, [friend_1, friend_2])
+
+    # Not registered
+    self.assertRaises(ValueError, child.to_config)
+
+    Configurable.register("person", Person)
+    self.assertEqual(
+        dad.to_config(),
+        Config(
+            "person",
+            args={
+                'name': 'Jack',
+                'friends': None,
+                'mom': None,
+                'dad': None
+            }))
+    self.assertEqual(
+        mom.to_config(),
+        Config(
+            "person",
+            args={
+                'name': 'Mary',
+                'friends': None,
+                'mom': None,
+                'dad': None
+            }))
+    self.assertEqual(
+        friend_1.to_config(),
+        Config(
+            "person",
+            args={
+                'name': 'Kay',
+                'friends': None,
+                'mom': None,
+                'dad': None
+            }))
+    self.assertEqual(
+        friend_2.to_config(),
+        Config(
+            "person",
+            args={
+                'name': 'Amy',
+                'friends': None,
+                'mom': None,
+                'dad': None
+            }))
+
+    self.assertEqual(
+        child.to_config(),
+        Config(
+            "person",
+            args={
+                'name': 'Susan',
+                'friends': [friend_1.to_config(),
+                            friend_2.to_config()],
+                'mom': mom.to_config(),
+                'dad': dad.to_config()
+            }))
+
+    dad_dup = Person.from_config(dad.to_config())
+    self.assertEqual(dad, dad_dup)
+    self.assertEqual(dad.to_config(), dad_dup.to_config())
+
+    child_dup = Person.from_config(child.to_config())
+    self.assertEqual(child, child_dup)
+    self.assertEqual(child.to_config(), child_dup.to_config())
+
+    Configurable.unregister("person")
 
 
 class Dummy(AnomalyDetector):
