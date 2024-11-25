@@ -17,7 +17,6 @@
 
 from __future__ import annotations
 
-import copy
 import dataclasses
 from typing import Any
 from typing import Iterable
@@ -28,31 +27,33 @@ import apache_beam as beam
 from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
+from apache_beam.ml.anomaly.base import Config
 from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
 
-  def __init__(self, threshold_func: ThresholdFn):
-    self._threshold_func = threshold_func
+  def __init__(self, threshold_func_config: Config):
+    self._threshold_func_config = threshold_func_config
+    self._threshold_func = None
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
-    label = self._threshold_func.apply(result.prediction.score)
+    label = self._threshold_func.apply(result.prediction.score)  # type: ignore
     return dataclasses.replace(
         result,
         prediction=dataclasses.replace(
             result.prediction,
             label=label,
-            threshold=self._threshold_func.threshold))
+            threshold=self._threshold_func.threshold))  # type: ignore
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
 
-  def __init__(self, threshold_func: ThresholdFn):
-    assert not threshold_func.is_stateful, \
+  def __init__(self, threshold_func_config: Config):
+    self._threshold_func = ThresholdFn.from_config(threshold_func_config)
+    assert not self._threshold_func.is_stateful, \
       "This DoFn can only take stateless function as threshold_func"
-    self._threshold_func = threshold_func
 
   def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
@@ -63,10 +64,11 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
 class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self, threshold_func: ThresholdFn):
+  def __init__(self, threshold_func_config: Config):
+    threshold_func = ThresholdFn.from_config(threshold_func_config)
     assert threshold_func.is_stateful, \
       "This DoFn can only take stateful function as threshold_func"
-    self._original_func = threshold_func
+    self._threshold_func_config = threshold_func_config
 
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyResult]],
@@ -76,7 +78,8 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
     self._threshold_func = threshold_state.read()  # type: ignore
     if self._threshold_func is None:
-      self._threshold_func = copy.deepcopy(self._original_func)
+      self._threshold_func = ThresholdFn.from_config(
+          self._threshold_func_config)
 
     yield k1, (k2, self._update_prediction(prediction))
 

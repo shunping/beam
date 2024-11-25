@@ -96,11 +96,11 @@ class _RunThresholdCriterion(
       if threshold_fn.is_stateful:
         postprocess_result = (
             input
-            | beam.ParDo(thresholds.StatefulThresholdDoFn(threshold_fn)))
+            | beam.ParDo(thresholds.StatefulThresholdDoFn(threshold_fn.to_config())))
       else:
         postprocess_result = (
             input
-            | beam.ParDo(thresholds.StatelessThresholdDoFn(threshold_fn)))
+            | beam.ParDo(thresholds.StatelessThresholdDoFn(threshold_fn.to_config())))
     else:
       postprocess_result: Any = input
 
