@@ -46,8 +46,8 @@ class Configurable():
   _key = None
 
   @classmethod
-  def register(cls, name, subclass) -> None:
-    if name in cls._known_subclasses:
+  def register(cls, name, subclass, error_if_exists=True) -> None:
+    if name in cls._known_subclasses and error_if_exists:
       raise ValueError(f"{name} is already registered for {subclass.__name__}")
     cls._known_subclasses[name] = subclass
     subclass._key = name

@@ -23,6 +23,10 @@ from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 
 
+class TestConfiguration(unittest.TestCase):
+  pass
+
+
 class Dummy(AnomalyDetector):
 
   def __init__(self, my_arg=None, **kwargs):
@@ -36,10 +40,6 @@ class Dummy(AnomalyDetector):
     ...
 
 
-# Register the class
-AnomalyDetector.register("newly-added-alg", Dummy)
-
-
 class TestAnomalyDetector(unittest.TestCase):
 
   def test_unknown_detector(self):
@@ -47,22 +47,28 @@ class TestAnomalyDetector(unittest.TestCase):
                       Config(type="unknown"))
 
   def test_known_detector(self):
-    # unregister the class
     AnomalyDetector.unregister("newly-added-alg")
 
     # Exception occurred when class exists but is not registered yet
     self.assertRaises(ValueError, AnomalyDetector.from_config,
                       Config(type="newly-added-alg"))
 
-    # Register the class
     AnomalyDetector.register("newly-added-alg", Dummy)
 
     a = AnomalyDetector.from_config(Config(type="newly-added-alg"))
     self.assertTrue(isinstance(a, Dummy))
     self.assertEqual(a._model_id, "newly-added-alg")
 
+    AnomalyDetector.unregister("newly-added-alg")
+
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
+
+  def setUp(self) -> None:
+    AnomalyDetector.register("newly-added-alg", Dummy)
+
+  def tearDown(self) -> None:
+    AnomalyDetector.unregister("newly-added-alg")
 
   def test_unknown_detector(self):
     self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
@@ -82,7 +88,6 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
                       Config(type="newly-added-ensemble"))
 
-    # Register the class
     EnsembleAnomalyDetector.register("newly-added-ensemble", Dummy)
 
     a = EnsembleAnomalyDetector.from_config(
@@ -90,6 +95,8 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     self.assertTrue(isinstance(a, Dummy))
     self.assertEqual(a._model_id, "newly-added-ensemble")
     self.assertEqual(a._n, 5)
+
+    EnsembleAnomalyDetector.unregister("newly-added-ensemble")
 
   def test_known_detector_with_custom_weak_learners(self):
     sub_d1 = AnomalyDetector.from_config(
@@ -148,9 +155,6 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
 
     # n is overwritten to the length of learners since learners is provided
     self.assertEqual(d._n, 2)
-
-    print(d._learners[0].to_config())
-    print(sub_d1_config)
 
     self.assertEqual(d._learners[0].to_config().args["my_arg"],
                      sub_d1_config.args["my_arg"])

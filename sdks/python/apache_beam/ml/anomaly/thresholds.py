@@ -134,6 +134,3 @@ class QuantileThreshold(ThresholdFn):
 
 
 ThresholdFn.register("quantile", QuantileThreshold)
-
-
-print(FixedThreshold(3).to_config())
