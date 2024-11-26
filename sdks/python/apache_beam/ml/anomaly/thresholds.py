@@ -30,32 +30,33 @@ from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import Config
 from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import configurable
+from apache_beam.ml.anomaly.base import Configurable
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
 class BaseThresholdDoFn(beam.DoFn):
 
-  def __init__(self, threshold_func_config: Config):
-    self._threshold_func_config = threshold_func_config
-    self._threshold_func = None
+  def __init__(self, threshold_fn_config: Config):
+    self._threshold_fn_config = threshold_fn_config
+    self._threshold_fn: ThresholdFn
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
-    label = self._threshold_func.apply(result.prediction.score)  # type: ignore
+    label = self._threshold_fn.apply(result.prediction.score)
     return dataclasses.replace(
         result,
         prediction=dataclasses.replace(
             result.prediction,
             label=label,
-            threshold=self._threshold_func.threshold))  # type: ignore
+            threshold=self._threshold_fn.threshold))
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
 
-  def __init__(self, threshold_func_config: Config):
-    self._threshold_func: ThresholdFn = Config.to_configurable(
-        threshold_func_config)  # type: ignore
-    assert not self._threshold_func.is_stateful, \
-      "This DoFn can only take stateless function as threshold_func"
+  def __init__(self, threshold_fn_config: Config):
+    self._threshold_fn: ThresholdFn = Config.to_configurable(
+        threshold_fn_config)
+    assert not self._threshold_fn.is_stateful, \
+      "This DoFn can only take stateless function as threshold_fn"
 
   def process(self, element: Tuple[Any, Tuple[Any, AnomalyResult]],
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
@@ -66,12 +67,11 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
 class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self, threshold_func_config: Config):
-    threshold_func: ThresholdFn = Config.to_configurable(
-        threshold_func_config)  # type: ignore
-    assert threshold_func.is_stateful, \
-      "This DoFn can only take stateful function as threshold_func"
-    self._threshold_func_config = threshold_func_config
+  def __init__(self, threshold_fn_config: Config):
+    threshold_fn: ThresholdFn = Config.to_configurable(threshold_fn_config)
+    assert threshold_fn.is_stateful, \
+      "This DoFn can only take stateful function as threshold_fn"
+    self._threshold_fn_config = threshold_fn_config
 
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyResult]],
@@ -79,14 +79,14 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
-    self._threshold_func = threshold_state.read()  # type: ignore
-    if self._threshold_func is None:
-      self._threshold_func: ThresholdFn = Config.to_configurable(
-          self._threshold_func_config)  # type: ignore
+    self._threshold_fn = threshold_state.read()  # type: ignore
+    if self._threshold_fn is None:
+      self._threshold_fn: Configurable = Config.to_configurable(
+          self._threshold_fn_config)
 
     yield k1, (k2, self._update_prediction(prediction))
 
-    threshold_state.write(self._threshold_func)  # type: ignore
+    threshold_state.write(self._threshold_fn)  # type: ignore
 
 
 @configurable
@@ -105,7 +105,7 @@ class FixedThreshold(ThresholdFn):
     return self._cutoff
 
   def apply(self, score: Optional[float]) -> int:
-    if score is None or score < self.threshold:  # type: ignore
+    if score is None or score < self.threshold:
       return self._normal_label
 
     return self._outlier_label

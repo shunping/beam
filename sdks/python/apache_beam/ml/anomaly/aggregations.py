@@ -69,7 +69,7 @@ class ScoreAggregation(AggregationFn):
         prediction.score
         for prediction in predictions
         if prediction.score is not None and
-        not math.isnan(prediction.score)  # type: ignore
+        not math.isnan(prediction.score)
     ]
 
     if len(scores) == 0:

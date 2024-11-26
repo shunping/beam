@@ -66,8 +66,7 @@ class _ScoreAndLearn(beam.DoFn):
     k1, (k2, data) = element
     self._underlying: AnomalyDetector = model_state.read()  # type: ignore
     if self._underlying is None:
-      self._underlying = Config.to_configurable(
-          self._detector_config)  # type: ignore
+      self._underlying = Config.to_configurable(self._detector_config)
 
     yield k1, (k2,
                AnomalyResult(
@@ -237,8 +236,8 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
         | "Add temp key" >> beam.Map(self.maybe_add_key)
         | _RunEnsembleDetector(self._root))
 
-    remove_temp_key_func: Callable[[Any, Tuple[Any, AnomalyResult]], Tuple[
+    remove_temp_key_fn: Callable[[Any, Tuple[Any, AnomalyResult]], Tuple[
         Any, AnomalyResult]] = lambda k, v: (k, v[1])
-    ret = ret | "Remove temp key" >> beam.MapTuple(remove_temp_key_func)
+    ret = ret | "Remove temp key" >> beam.MapTuple(remove_temp_key_fn)
 
     return ret

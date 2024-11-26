@@ -84,6 +84,7 @@ class TestConfigurable(unittest.TestCase):
         "shopping_entry", args={
             'product': expected_orange_config,
         })
+
     self.assertEqual(Config.from_configurable(entry_1), expected_entry_config_1)
     self.assertEqual(Config.to_configurable(expected_entry_config_1), entry_1)
 

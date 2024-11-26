@@ -21,30 +21,25 @@ import abc
 import dataclasses
 from dataclasses import dataclass
 import inspect
-import logging
 from typing import Any
 from typing import Iterable
 from typing import List
 from typing import Optional
 from typing import Protocol
-from typing import Type
 from typing import TypeVar
 from typing import runtime_checkable
 
 import apache_beam as beam
-
-ConfigT = TypeVar('ConfigT', bound='Configurable')
 
 KNOWN_CONFIGURABLE = {}
 
 
 @runtime_checkable
 class Configurable(Protocol):
-  _key = None
+  _key: str
 
-  @property
-  def configurable(self) -> bool:
-    return True
+
+ConfigT = TypeVar('ConfigT', bound=Configurable)
 
 
 def register_configurable(cls, key=None, error_if_exists=True) -> None:
@@ -59,7 +54,7 @@ def register_configurable(cls, key=None, error_if_exists=True) -> None:
   cls._key = key
 
 
-def configurable(my_cls=None, key=None):
+def configurable(my_cls=None, /, *, key=None):
 
   def wrapper(cls):
     original_init = cls.__init__
@@ -76,16 +71,15 @@ def configurable(my_cls=None, key=None):
       original_init(self, *args, **kwargs)
 
     cls.__init__ = new_init
-    cls.configurable = True
 
     register_configurable(cls, key)
 
     return cls
 
-  if key is None:
-    return wrapper(my_cls)
+  if my_cls is None:
+    return wrapper
 
-  return wrapper
+  return wrapper(my_cls)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -105,8 +99,7 @@ class Config():
 
   @classmethod
   def from_configurable(cls, configurable):
-    if not hasattr (type(configurable), '_key') or \
-        type(configurable)._key is None:
+    if getattr(type(configurable), '_key', None) is None:
       raise ValueError(
           f"'{type(configurable).__name__}' not registered as Configurable. "
           f"Call register_configurable({type(configurable).__name__})")
@@ -132,7 +125,7 @@ class Config():
 
     return v
 
-  def to_configurable(self) -> Configurable:
+  def to_configurable(self) -> ConfigT:  # type: ignore
     if self.type is None:
       raise ValueError(f"Config type not found in {self}")
 
@@ -199,7 +192,8 @@ class AnomalyDetector(abc.ABC):
                threshold_criterion: Optional[ThresholdFn] = None,
                initialize_model=False,
                **kwargs):
-    self._model_id = model_id if model_id is not None else self._key
+    self._model_id = model_id if model_id is not None else getattr(
+        self, '_key', None)
     self._features = features
     self._target = target
     self._threshold_criterion = threshold_criterion
@@ -228,7 +222,7 @@ class EnsembleAnomalyDetector(AnomalyDetector):
       self._n = len(self._learners)
 
     if "model_id" not in kwargs:
-      kwargs["model_id"] = self._key if self._key is not None else "custom"
+      kwargs["model_id"] = getattr(self, '_key', 'custom')
 
     super().__init__(**kwargs)
 

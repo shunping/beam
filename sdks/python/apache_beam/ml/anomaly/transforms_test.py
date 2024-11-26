@@ -207,39 +207,39 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
                          [False, False, None], [False, False, "new_root"]])
   def test_model_id(self, use_threshold, use_aggregation, root_model_id):
     if use_threshold:
-      threshold_func = FixedThreshold(3.0)
+      threshold_fn = FixedThreshold(3.0)
     else:
-      threshold_func = None
+      threshold_fn = None
 
     if use_aggregation:
       if use_threshold:
-        aggregation_func = AnyVote()
+        aggregation_fn = AnyVote()
       else:
-        aggregation_func = AverageScore()
+        aggregation_fn = AverageScore()
     else:
-      aggregation_func = None
+      aggregation_fn = None
 
     detectors = []
     detectors.append(
         StandardAbsoluteDeviation(
-            features=["x1"], threshold_criterion=threshold_func))
+            features=["x1"], threshold_criterion=threshold_fn))
     detectors.append(
         StandardAbsoluteDeviation(
             model_id="sad_x2",
             features=["x2"],
-            threshold_criterion=threshold_func))
+            threshold_criterion=threshold_fn))
     detectors.append(
         Loda(
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
-            threshold_criterion=threshold_func))
+            threshold_criterion=threshold_fn))
     detectors.append(
         Loda(
             model_id="ensemble_2",
             algorithm="loda",
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
-            threshold_criterion=threshold_func))
+            threshold_criterion=threshold_fn))
 
     model_id_1 = detectors[0]._model_id
     self.assertEqual(model_id_1, "sad")
@@ -300,7 +300,7 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
           | AnomalyDetection(
               detectors,
-              aggregation_strategy=aggregation_func,
+              aggregation_strategy=aggregation_fn,
               root_model_id=root_model_id))
 
       _ = result | beam.Map(print)
