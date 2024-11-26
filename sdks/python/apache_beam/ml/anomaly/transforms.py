@@ -21,6 +21,7 @@ from typing import Iterable
 from typing import List
 from typing import Tuple
 from typing import Optional
+from typing import Union
 import uuid
 
 import apache_beam as beam
@@ -34,6 +35,7 @@ from apache_beam.ml.anomaly.base import AggregationFn
 from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
+from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 from apache_beam.utils import timestamp
 
 
@@ -60,11 +62,12 @@ class _ScoreAndLearn(beam.DoFn):
 
   def process(self,
               element: Tuple[Any, Tuple[Any, beam.Row]],
-              model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
+              model_state: Union[ReadModifyWriteRuntimeState,
+                                 Any] = beam.DoFn.StateParam(MODEL_STATE_INDEX),
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
     k1, (k2, data) = element
-    self._underlying: AnomalyDetector = model_state.read()  # type: ignore
+    self._underlying: AnomalyDetector = model_state.read()
     if self._underlying is None:
       self._underlying = Config.to_configurable(self._detector_config)
 
@@ -75,7 +78,7 @@ class _ScoreAndLearn(beam.DoFn):
                        model_id=self._underlying._model_id,
                        score=self.score_and_learn(data))))
 
-    model_state.write(self._underlying)  # type: ignore
+    model_state.write(self._underlying)
 
 
 class _RunThresholdCriterion(
@@ -236,8 +239,9 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
         | "Add temp key" >> beam.Map(self.maybe_add_key)
         | _RunEnsembleDetector(self._root))
 
-    remove_temp_key_fn: Callable[[Any, Tuple[Any, AnomalyResult]], Tuple[
-        Any, AnomalyResult]] = lambda k, v: (k, v[1])
+    remove_temp_key_fn: Callable[[Any, Tuple[Any, AnomalyResult]],
+                                 Tuple[Any,
+                                       AnomalyResult]] = lambda k, v: (k, v[1])
     ret = ret | "Remove temp key" >> beam.MapTuple(remove_temp_key_fn)
 
     return ret

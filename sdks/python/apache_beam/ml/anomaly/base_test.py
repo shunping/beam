@@ -33,15 +33,20 @@ class TestConfigurable(unittest.TestCase):
 
   def testCallingRegisterOnBaseClass(self):
 
-    @configurable
-    class NewStuff:
+    class UnconfigurableStuff:
       pass
 
-    self.assertIn("NewStuff", KNOWN_CONFIGURABLE)
-    self.assertRaises(ValueError, register_configurable, NewStuff, "NewStuff")
+    @configurable
+    class ConfigurableStuff:
+      pass
+
+    self.assertNotIn("UnconfigurableStuff", KNOWN_CONFIGURABLE)
+    self.assertIn("ConfigurableStuff", KNOWN_CONFIGURABLE)
+    self.assertRaises(ValueError, register_configurable, ConfigurableStuff,
+                      "NewStuff")
 
     # no error raised
-    register_configurable(NewStuff, "NewStuff", error_if_exists=False)
+    register_configurable(ConfigurableStuff, "NewStuff", error_if_exists=False)
 
   def testToConfigurableAndFromConfigurable(self):
 

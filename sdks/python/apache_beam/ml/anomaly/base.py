@@ -37,6 +37,7 @@ KNOWN_CONFIGURABLE = {}
 @runtime_checkable
 class Configurable(Protocol):
   _key: str
+  _init_params: dict[str, Any]
 
 
 ConfigT = TypeVar('ConfigT', bound=Configurable)

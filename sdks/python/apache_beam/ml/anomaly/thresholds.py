@@ -22,6 +22,7 @@ from typing import Any
 from typing import Iterable
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import apache_beam as beam
 from apache_beam.coders import DillCoder
@@ -32,6 +33,7 @@ from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly.base import Configurable
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
+from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 
 
 class BaseThresholdDoFn(beam.DoFn):
@@ -75,18 +77,20 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
   def process(self,
               element: Tuple[Any, Tuple[Any, AnomalyResult]],
-              threshold_state=beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
+              threshold_state: Union[ReadModifyWriteRuntimeState,
+                                     Any] = beam.DoFn.StateParam(
+                                         THRESHOLD_STATE_INDEX),
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
-    self._threshold_fn = threshold_state.read()  # type: ignore
+    self._threshold_fn = threshold_state.read()
     if self._threshold_fn is None:
       self._threshold_fn: Configurable = Config.to_configurable(
           self._threshold_fn_config)
 
     yield k1, (k2, self._update_prediction(prediction))
 
-    threshold_state.write(self._threshold_fn)  # type: ignore
+    threshold_state.write(self._threshold_fn)
 
 
 @configurable

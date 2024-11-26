@@ -68,7 +68,7 @@ def run(argv=None, save_main_session=True):
         p | beam.Create(data)
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
         | AnomalyDetection(detectors,
-                           # aggregation_strategy=MajorityVote()
+                           aggregation_strategy=MajorityVote()
                           )
         | beam.Map(logging.info))
 
