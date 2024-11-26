@@ -28,9 +28,8 @@ from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import Config
-from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly.base import ThresholdFn
-from apache_beam.ml.anomaly.base import register_configurable
+from apache_beam.ml.anomaly.base import configurable
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
@@ -112,8 +111,6 @@ class FixedThreshold(ThresholdFn):
     return self._outlier_label
 
 
-register_configurable(FixedThreshold, "fixed_threshold")
-
 @configurable
 class QuantileThreshold(ThresholdFn):
 
@@ -139,6 +136,3 @@ class QuantileThreshold(ThresholdFn):
       return self._normal_label
 
     return self._outlier_label
-
-
-register_configurable(QuantileThreshold, "quantile_threshold")

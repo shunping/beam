@@ -38,17 +38,6 @@ ConfigT = TypeVar('ConfigT', bound='Configurable')
 KNOWN_CONFIGURABLE = {}
 
 
-def register_configurable(cls, key=None, error_if_exists=True) -> None:
-  if key is None:
-    key = cls.__name__
-
-  if key in KNOWN_CONFIGURABLE and error_if_exists:
-    raise ValueError(f"{key} is already registered for configurable")
-
-  KNOWN_CONFIGURABLE[key] = cls
-  cls._key = key
-
-
 @runtime_checkable
 class Configurable(Protocol):
   _key = None
@@ -58,24 +47,45 @@ class Configurable(Protocol):
     return True
 
 
-def configurable(cls):
-  original_init = cls.__init__
+def register_configurable(cls, key=None, error_if_exists=True) -> None:
+  if key is None:
+    key = cls.__name__
 
-  def new_init(self, *args, **kwargs):
-    if not hasattr(self, "_init_params"):
-      params = dict(
-          zip(
-              inspect.signature(original_init).parameters.keys(),
-              (None,) + args))
-      del params['self']
-      params.update(**kwargs)
-      self._init_params = params
-    original_init(self, *args, **kwargs)
+  if key in KNOWN_CONFIGURABLE and error_if_exists:
+    raise ValueError(f"{key} is already registered for configurable")
 
-  cls.__init__ = new_init
-  cls._key = None
-  cls.configurable = True
-  return cls
+  KNOWN_CONFIGURABLE[key] = cls
+
+  cls._key = key
+
+
+def configurable(my_cls=None, key=None):
+
+  def wrapper(cls):
+    original_init = cls.__init__
+
+    def new_init(self, *args, **kwargs):
+      if not hasattr(self, "_init_params"):
+        params = dict(
+            zip(
+                inspect.signature(original_init).parameters.keys(),
+                (None,) + args))
+        del params['self']
+        params.update(**kwargs)
+        self._init_params = params
+      original_init(self, *args, **kwargs)
+
+    cls.__init__ = new_init
+    cls.configurable = True
+
+    register_configurable(cls, key)
+
+    return cls
+
+  if key is None:
+    return wrapper(my_cls)
+
+  return wrapper
 
 
 @dataclasses.dataclass(frozen=True)
@@ -103,8 +113,7 @@ class Config():
 
     if not hasattr(configurable, '_init_params'):
       raise ValueError(
-        f"{type(configurable).__name__}' not decorated with @configurable."
-      )
+          f"{type(configurable).__name__}' not decorated with @configurable.")
 
     args = {
         k: Config._from_configurable_helper(v)
@@ -131,10 +140,7 @@ class Config():
     if subclass is None:
       raise ValueError(f"Unknown config type '{self.type}' in {self}")
 
-    args = {
-      k: Config._to_configurable_helper(v)
-      for k, v in self.args.items()
-    }
+    args = {k: Config._to_configurable_helper(v) for k, v in self.args.items()}
 
     return subclass(**args)
 

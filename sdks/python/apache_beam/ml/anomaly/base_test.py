@@ -37,19 +37,11 @@ class TestConfigurable(unittest.TestCase):
     class NewStuff:
       pass
 
-    register_configurable(NewStuff, "new-stuff")
-    self.assertIn("new-stuff", KNOWN_CONFIGURABLE)
-    self.assertRaises(ValueError, register_configurable, NewStuff, "new-stuff")
-
-    # no error raised
-    register_configurable(NewStuff, "new-stuff", error_if_exists=False)
-
-    register_configurable(NewStuff)
     self.assertIn("NewStuff", KNOWN_CONFIGURABLE)
-    self.assertRaises(ValueError, register_configurable, NewStuff)
+    self.assertRaises(ValueError, register_configurable, NewStuff, "NewStuff")
 
     # no error raised
-    register_configurable(NewStuff, error_if_exists=False)
+    register_configurable(NewStuff, "NewStuff", error_if_exists=False)
 
   def testToConfigurableAndFromConfigurable(self):
 
@@ -59,7 +51,7 @@ class TestConfigurable(unittest.TestCase):
       name: str
       price: float
 
-    @configurable
+    @configurable(key="shopping_entry")
     class Entry():
 
       def __init__(self, product: Product, quantity: int = 1):
@@ -70,18 +62,13 @@ class TestConfigurable(unittest.TestCase):
         return self._product == value._product and \
           self._quantity == value._quantity
 
-    @configurable
+    @configurable(key="shopping_cart")
     @dataclasses.dataclass
     class ShoppingCart():
       user_id: str
       entries: List[Entry]
 
     orange = Product("orange", 1.0)
-
-    # Not registered
-    self.assertRaises(ValueError, Config.from_configurable, orange)
-
-    register_configurable(Product)
 
     expected_orange_config = Config(
         "Product", args={
@@ -91,7 +78,6 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(Config.from_configurable(orange), expected_orange_config)
     self.assertEqual(Config.to_configurable(expected_orange_config), orange)
 
-    register_configurable(Entry, "shopping_entry")
     entry_1 = Entry(product=orange)
 
     expected_entry_config_1 = Config(
@@ -115,7 +101,6 @@ class TestConfigurable(unittest.TestCase):
             'quantity': 5
         })
 
-    register_configurable(ShoppingCart, "shopping_cart")
     shopping_cart = ShoppingCart(user_id="test", entries=[entry_1, entry_2])
     expected_shopping_cart_config = Config(
         "shopping_cart",

@@ -20,12 +20,11 @@ import math
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyDetector
-from apache_beam.ml.anomaly.base import register_configurable
 from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-@configurable
+@configurable(key="sad")
 class StandardAbsoluteDeviation(AnomalyDetector):
 
   def __init__(self, sub_stat="mean", window_size=10, **kwargs):
@@ -69,6 +68,3 @@ class StandardAbsoluteDeviation(AnomalyDetector):
     if math.isnan(stdev) or abs(stdev) < EPSILON:
       return 0.0
     return abs((v - sub_stat) / stdev)
-
-
-register_configurable(StandardAbsoluteDeviation, "sad")

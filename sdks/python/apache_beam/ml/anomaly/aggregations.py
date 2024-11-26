@@ -24,7 +24,6 @@ from typing import Iterable
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AggregationFn
 from apache_beam.ml.anomaly.base import configurable
-from apache_beam.ml.anomaly.base import register_configurable
 
 
 class LabelAggregation(AggregationFn):
@@ -83,6 +82,7 @@ class ScoreAggregation(AggregationFn):
     return AnomalyPrediction(
         model_id=self._model_override, score=score, agg_history=history)
 
+
 @configurable
 class MajorityVote(LabelAggregation):
 
@@ -104,8 +104,6 @@ class MajorityVote(LabelAggregation):
     super().__init__(agg_func=inner, **kwargs)
 
 
-register_configurable(MajorityVote, "majority_vote")
-
 # And scheme
 @configurable
 class AllVote(LabelAggregation):
@@ -120,9 +118,6 @@ class AllVote(LabelAggregation):
               predictions)) else self._normal_label
 
     super().__init__(agg_func=inner, **kwargs)
-
-
-register_configurable(AllVote, "all_vote")
 
 
 # Or scheme
@@ -141,8 +136,6 @@ class AnyVote(LabelAggregation):
     super().__init__(agg_func=inner, **kwargs)
 
 
-register_configurable(AnyVote, "any_vote")
-
 @configurable
 class AverageScore(ScoreAggregation):
 
@@ -150,13 +143,8 @@ class AverageScore(ScoreAggregation):
     super().__init__(agg_func=statistics.mean, **kwargs)
 
 
-register_configurable(AverageScore, "average_score")
-
 @configurable
 class MaxScore(ScoreAggregation):
 
   def __init__(self, **kwargs):
     super().__init__(agg_func=max, **kwargs)
-
-
-register_configurable(MaxScore, "max_score")

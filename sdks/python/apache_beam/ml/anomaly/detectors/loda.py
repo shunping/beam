@@ -20,12 +20,11 @@ import numpy as np
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
-from apache_beam.ml.anomaly.base import register_configurable
 from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly import univariate
 
 
-@configurable
+@configurable(key="loda-weak-learner")
 class LodaWeakLearner(AnomalyDetector):
 
   def __init__(self,
@@ -79,9 +78,7 @@ class LodaWeakLearner(AnomalyDetector):
     return float(y_pred)
 
 
-register_configurable(LodaWeakLearner, "loda-weak-learner")
-
-@configurable
+@configurable(key="loda")
 class Loda(EnsembleAnomalyDetector):
 
   def __init__(self, n: int = 10, aggregation_strategy=None, **kwargs):
@@ -94,5 +91,3 @@ class Loda(EnsembleAnomalyDetector):
         aggregation_strategy=aggregation_strategy,
         **kwargs)
 
-
-register_configurable(Loda, "loda")
