@@ -28,7 +28,9 @@ from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import Config
+from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly.base import ThresholdFn
+from apache_beam.ml.anomaly.base import register_configurable
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 
 
@@ -51,7 +53,8 @@ class BaseThresholdDoFn(beam.DoFn):
 class StatelessThresholdDoFn(BaseThresholdDoFn):
 
   def __init__(self, threshold_func_config: Config):
-    self._threshold_func = ThresholdFn.from_config(threshold_func_config)
+    self._threshold_func: ThresholdFn = Config.to_configurable(
+        threshold_func_config)  # type: ignore
     assert not self._threshold_func.is_stateful, \
       "This DoFn can only take stateless function as threshold_func"
 
@@ -65,7 +68,8 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
   def __init__(self, threshold_func_config: Config):
-    threshold_func = ThresholdFn.from_config(threshold_func_config)
+    threshold_func: ThresholdFn = Config.to_configurable(
+        threshold_func_config)  # type: ignore
     assert threshold_func.is_stateful, \
       "This DoFn can only take stateful function as threshold_func"
     self._threshold_func_config = threshold_func_config
@@ -78,14 +82,15 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
     self._threshold_func = threshold_state.read()  # type: ignore
     if self._threshold_func is None:
-      self._threshold_func = ThresholdFn.from_config(
-          self._threshold_func_config)
+      self._threshold_func: ThresholdFn = Config.to_configurable(
+          self._threshold_func_config)  # type: ignore
 
     yield k1, (k2, self._update_prediction(prediction))
 
     threshold_state.write(self._threshold_func)  # type: ignore
 
 
+@configurable
 class FixedThreshold(ThresholdFn):
 
   def __init__(self, cutoff: float, **kwargs):
@@ -107,9 +112,9 @@ class FixedThreshold(ThresholdFn):
     return self._outlier_label
 
 
-ThresholdFn.register("fixed", FixedThreshold)
+register_configurable(FixedThreshold, "fixed_threshold")
 
-
+@configurable
 class QuantileThreshold(ThresholdFn):
 
   def __init__(self, quantile: float, **kwargs):
@@ -136,4 +141,4 @@ class QuantileThreshold(ThresholdFn):
     return self._outlier_label
 
 
-ThresholdFn.register("quantile", QuantileThreshold)
+register_configurable(QuantileThreshold, "quantile_threshold")

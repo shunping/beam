@@ -23,6 +23,8 @@ from typing import Iterable
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AggregationFn
+from apache_beam.ml.anomaly.base import configurable
+from apache_beam.ml.anomaly.base import register_configurable
 
 
 class LabelAggregation(AggregationFn):
@@ -81,7 +83,7 @@ class ScoreAggregation(AggregationFn):
     return AnomalyPrediction(
         model_id=self._model_override, score=score, agg_history=history)
 
-
+@configurable
 class MajorityVote(LabelAggregation):
 
   def __init__(self, normal_label=0, outlier_label=1, tie_breaker=0, **kwargs):
@@ -102,10 +104,10 @@ class MajorityVote(LabelAggregation):
     super().__init__(agg_func=inner, **kwargs)
 
 
-AggregationFn.register("majority_vote", MajorityVote)
-
+register_configurable(MajorityVote, "majority_vote")
 
 # And scheme
+@configurable
 class AllVote(LabelAggregation):
 
   def __init__(self, normal_label=0, outlier_label=1, **kwargs):
@@ -120,10 +122,11 @@ class AllVote(LabelAggregation):
     super().__init__(agg_func=inner, **kwargs)
 
 
-AggregationFn.register("all_vote", AllVote)
+register_configurable(AllVote, "all_vote")
 
 
 # Or scheme
+@configurable
 class AnyVote(LabelAggregation):
 
   def __init__(self, normal_label=0, outlier_label=1, **kwargs):
@@ -138,22 +141,22 @@ class AnyVote(LabelAggregation):
     super().__init__(agg_func=inner, **kwargs)
 
 
-AggregationFn.register("any_vote", AnyVote)
+register_configurable(AnyVote, "any_vote")
 
-
+@configurable
 class AverageScore(ScoreAggregation):
 
   def __init__(self, **kwargs):
     super().__init__(agg_func=statistics.mean, **kwargs)
 
 
-AggregationFn.register("average_score", AverageScore)
+register_configurable(AverageScore, "average_score")
 
-
+@configurable
 class MaxScore(ScoreAggregation):
 
   def __init__(self, **kwargs):
     super().__init__(agg_func=max, **kwargs)
 
 
-AggregationFn.register("max_score", MaxScore)
+register_configurable(MaxScore, "max_score")

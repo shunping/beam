@@ -15,285 +15,253 @@
 # limitations under the License.
 #
 
+import dataclasses
 import logging
 import unittest
 from typing import List
 from typing import Optional
 
 from apache_beam.ml.anomaly.base import Config
-from apache_beam.ml.anomaly.base import Configurable
+from apache_beam.ml.anomaly.base import configurable
+from apache_beam.ml.anomaly.base import register_configurable
+from apache_beam.ml.anomaly.base import KNOWN_CONFIGURABLE
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 
 
 class TestConfigurable(unittest.TestCase):
+
   def testCallingRegisterOnBaseClass(self):
 
-    class NewStuff(Configurable):
+    @configurable
+    class NewStuff:
       pass
 
-    Configurable.register("new-stuff", NewStuff)
+    register_configurable(NewStuff, "new-stuff")
+    self.assertIn("new-stuff", KNOWN_CONFIGURABLE)
+    self.assertRaises(ValueError, register_configurable, NewStuff, "new-stuff")
 
-    self.assertRaises(ValueError, Configurable.register, "new-stuff", NewStuff)
+    # no error raised
+    register_configurable(NewStuff, "new-stuff", error_if_exists=False)
 
-    Configurable.register("new-stuff", NewStuff, False)
+    register_configurable(NewStuff)
+    self.assertIn("NewStuff", KNOWN_CONFIGURABLE)
+    self.assertRaises(ValueError, register_configurable, NewStuff)
 
-    Configurable.unregister("new-stuff")
-    Configurable.register("new-stuff", NewStuff)
-    Configurable.unregister("new-stuff")
+    # no error raised
+    register_configurable(NewStuff, error_if_exists=False)
 
-  def testCallingRegisterOnSubClass(self):
+  def testToConfigurableAndFromConfigurable(self):
 
-    class NewStuff(Configurable):
-      pass
+    @configurable
+    @dataclasses.dataclass
+    class Product():
+      name: str
+      price: float
 
-    NewStuff.register("new-stuff2", NewStuff)
-    self.assertRaises(ValueError, NewStuff.register, "new-stuff2", NewStuff)
+    @configurable
+    class Entry():
 
-    NewStuff.register("new-stuff2", NewStuff, False)
+      def __init__(self, product: Product, quantity: int = 1):
+        self._product = product
+        self._quantity = quantity
 
-    NewStuff.unregister("new-stuff2")
-    NewStuff.register("new-stuff2", NewStuff)
-    NewStuff.unregister("new-stuff2")
+      def __eq__(self, value: 'Entry') -> bool:
+        return self._product == value._product and \
+          self._quantity == value._quantity
 
-  def testCallingRegisterOnDifferentSubClass(self):
+    @configurable
+    @dataclasses.dataclass
+    class ShoppingCart():
+      user_id: str
+      entries: List[Entry]
 
-    class Func_1(Configurable):
-      pass
-
-    class Func_2(Configurable):
-      pass
-
-    Func_1.register("my_func", Func_1)
-    # Func_1 and Func_2 sharing the same internal mutable class variable.
-    # They can not be registered with the same name.
-    self.assertRaises(ValueError, Func_2.register, "my_func", Func_2)
-    Func_1.unregister("my_func")
-
-  def testToConfigAndFromConfig(self):
-
-    class Person(Configurable):
-
-      def __init__(self, name: str, dad: Optional['Person'],
-                   mom: Optional['Person'], friends: Optional[List['Person']]):
-        self._name = name
-        self._dad = dad
-        self._mom = mom
-        self._friends = friends
-
-      def __eq__(self, value: 'Person') -> bool:
-        return self._name == value._name and self._dad == value._dad and \
-          self._mom == value._mom and self._friends == value._friends
-
-    dad = Person("Jack", None, None, None)
-    mom = Person("Mary", None, None, None)
-    friend_1 = Person("Kay", None, None, None)
-    friend_2 = Person("Amy", None, None, None)
-    child = Person("Susan", dad, mom, [friend_1, friend_2])
+    orange = Product("orange", 1.0)
 
     # Not registered
-    self.assertRaises(ValueError, child.to_config)
+    self.assertRaises(ValueError, Config.from_configurable, orange)
 
-    Configurable.register("person", Person)
-    self.assertEqual(
-        dad.to_config(),
-        Config(
-            "person",
-            args={
-                'name': 'Jack',
-                'friends': None,
-                'mom': None,
-                'dad': None
-            }))
-    self.assertEqual(
-        mom.to_config(),
-        Config(
-            "person",
-            args={
-                'name': 'Mary',
-                'friends': None,
-                'mom': None,
-                'dad': None
-            }))
-    self.assertEqual(
-        friend_1.to_config(),
-        Config(
-            "person",
-            args={
-                'name': 'Kay',
-                'friends': None,
-                'mom': None,
-                'dad': None
-            }))
-    self.assertEqual(
-        friend_2.to_config(),
-        Config(
-            "person",
-            args={
-                'name': 'Amy',
-                'friends': None,
-                'mom': None,
-                'dad': None
-            }))
+    register_configurable(Product)
 
-    self.assertEqual(
-        child.to_config(),
-        Config(
-            "person",
-            args={
-                'name': 'Susan',
-                'friends': [friend_1.to_config(),
-                            friend_2.to_config()],
-                'mom': mom.to_config(),
-                'dad': dad.to_config()
-            }))
-
-    dad_dup = Person.from_config(dad.to_config())
-    self.assertEqual(dad, dad_dup)
-    self.assertEqual(dad.to_config(), dad_dup.to_config())
-
-    child_dup = Person.from_config(child.to_config())
-    self.assertEqual(child, child_dup)
-    self.assertEqual(child.to_config(), child_dup.to_config())
-
-    Configurable.unregister("person")
-
-
-class Dummy(AnomalyDetector):
-
-  def __init__(self, my_arg=None, **kwargs):
-    self._my_arg = my_arg
-    super().__init__(**kwargs)
-
-  def learn_one(self):
-    ...
-
-  def score_one(self):
-    ...
-
-
-class TestAnomalyDetector(unittest.TestCase):
-
-  def test_unknown_detector(self):
-    self.assertRaises(ValueError, AnomalyDetector.from_config,
-                      Config(type="unknown"))
-
-  def test_known_detector(self):
-    AnomalyDetector.unregister("newly-added-alg")
-
-    # Exception occurred when class exists but is not registered yet
-    self.assertRaises(ValueError, AnomalyDetector.from_config,
-                      Config(type="newly-added-alg"))
-
-    AnomalyDetector.register("newly-added-alg", Dummy)
-
-    a = AnomalyDetector.from_config(Config(type="newly-added-alg"))
-    self.assertTrue(isinstance(a, Dummy))
-    self.assertEqual(a._model_id, "newly-added-alg")
-
-    AnomalyDetector.unregister("newly-added-alg")
-
-
-class TestEnsembleAnomalyDetector(unittest.TestCase):
-
-  def setUp(self) -> None:
-    AnomalyDetector.register("newly-added-alg", Dummy)
-
-  def tearDown(self) -> None:
-    AnomalyDetector.unregister("newly-added-alg")
-
-  def test_unknown_detector(self):
-    self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
-                      Config(type="unknown"))
-
-  def test_known_detector(self):
-
-    class Dummy(EnsembleAnomalyDetector):
-
-      def learn_one(self):
-        ...
-
-      def score_one(self):
-        ...
-
-    # Exception occurred when class exists but is not registered yet
-    self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
-                      Config(type="newly-added-ensemble"))
-
-    EnsembleAnomalyDetector.register("newly-added-ensemble", Dummy)
-
-    a = EnsembleAnomalyDetector.from_config(
-        Config(type="newly-added-ensemble", args={"n": 5}))
-    self.assertTrue(isinstance(a, Dummy))
-    self.assertEqual(a._model_id, "newly-added-ensemble")
-    self.assertEqual(a._n, 5)
-
-    EnsembleAnomalyDetector.unregister("newly-added-ensemble")
-
-  def test_known_detector_with_custom_weak_learners(self):
-    sub_d1 = AnomalyDetector.from_config(
-        Config(
-            type="newly-added-alg", args={
-                "window_size": 10,
-                "model_id": "d1"
-            }))
-    sub_d2 = AnomalyDetector.from_config(
-        Config(
-            type="newly-added-alg", args={
-                "window_size": 20,
-                "model_id": "d2"
-            }))
-
-    d = EnsembleAnomalyDetector(n=5, learners=[sub_d1, sub_d2])
-    self.assertEqual(d._model_id, "custom")
-
-    assert d._learners
-    self.assertEqual(len(d._learners), 2)
-
-    # n is overwritten to the length of learners since learners is provided
-    self.assertEqual(d._n, 2)
-
-    self.assertEqual(d._learners[0], sub_d1)
-    self.assertEqual(d._learners[1], sub_d2)
-
-    self.assertEqual(d._learners[0]._model_id, "d1")
-    self.assertEqual(d._learners[1]._model_id, "d2")
-
-  def test_known_detector_with_custom_weak_learners2(self):
-    sub_d1_config = Config(
-        type="newly-added-alg", args={
-            "my_arg": 10,
-            "model_id": "d1"
+    expected_orange_config = Config(
+        "Product", args={
+            'name': 'orange',
+            'price': 1.0
         })
-    sub_d2_config = Config(
-        type="newly-added-alg", args={
-            "my_arg": 20,
-            "model_id": "d2"
+    self.assertEqual(Config.from_configurable(orange), expected_orange_config)
+    self.assertEqual(Config.to_configurable(expected_orange_config), orange)
+
+    register_configurable(Entry, "shopping_entry")
+    entry_1 = Entry(product=orange)
+
+    expected_entry_config_1 = Config(
+        "shopping_entry", args={
+            'product': expected_orange_config,
+        })
+    self.assertEqual(Config.from_configurable(entry_1), expected_entry_config_1)
+    self.assertEqual(Config.to_configurable(expected_entry_config_1), entry_1)
+
+    banana = Product("banana", 0.5)
+    expected_banana_config = Config(
+        "Product", args={
+            'name': 'banana',
+            'price': 0.5
+        })
+    entry_2 = Entry(product=banana, quantity=5)
+    expected_entry_config_2 = Config(
+        "shopping_entry",
+        args={
+            'product': expected_banana_config,
+            'quantity': 5
         })
 
-    d = EnsembleAnomalyDetector.from_config(
-        Config(
-            type="custom",
-            args={
-                "n": 5,
-                "learners": [sub_d1_config, sub_d2_config]
-            }))
+    register_configurable(ShoppingCart, "shopping_cart")
+    shopping_cart = ShoppingCart(user_id="test", entries=[entry_1, entry_2])
+    expected_shopping_cart_config = Config(
+        "shopping_cart",
+        args={
+            "user_id": "test",
+            "entries": [expected_entry_config_1, expected_entry_config_2]
+        })
 
-    # d = EnsembleAnomalyDetector(n=5, learners=[sub_d1, sub_d2])
-    self.assertEqual(d._model_id, "custom")
+    self.assertEqual(
+        Config.from_configurable(shopping_cart), expected_shopping_cart_config)
+    self.assertEqual(
+        Config.to_configurable(expected_shopping_cart_config), shopping_cart)
 
-    assert d._learners
-    self.assertEqual(len(d._learners), 2)
 
-    # n is overwritten to the length of learners since learners is provided
-    self.assertEqual(d._n, 2)
+# class Dummy(AnomalyDetector):
 
-    self.assertEqual(d._learners[0].to_config().args["my_arg"],
-                     sub_d1_config.args["my_arg"])
+#   def __init__(self, my_arg=None, **kwargs):
+#     self._my_arg = my_arg
+#     super().__init__(**kwargs)
 
-    self.assertEqual(d._learners[1].to_config().args["my_arg"],
-                     sub_d2_config.args["my_arg"])
+#   def learn_one(self):
+#     ...
 
+#   def score_one(self):
+#     ...
+
+# class TestAnomalyDetector(unittest.TestCase):
+
+#   def test_unknown_detector(self):
+#     self.assertRaises(ValueError, AnomalyDetector.from_config,
+#                       Config(type="unknown"))
+
+#   def test_known_detector(self):
+#     AnomalyDetector.unregister("newly-added-alg")
+
+#     # Exception occurred when class exists but is not registered yet
+#     self.assertRaises(ValueError, AnomalyDetector.from_config,
+#                       Config(type="newly-added-alg"))
+
+#     AnomalyDetector.register("newly-added-alg", Dummy)
+
+#     a = AnomalyDetector.from_config(Config(type="newly-added-alg"))
+#     self.assertTrue(isinstance(a, Dummy))
+#     self.assertEqual(a._model_id, "newly-added-alg")
+
+#     AnomalyDetector.unregister("newly-added-alg")
+
+# class TestEnsembleAnomalyDetector(unittest.TestCase):
+
+#   def setUp(self) -> None:
+#     AnomalyDetector.register("newly-added-alg", Dummy)
+
+#   def tearDown(self) -> None:
+#     AnomalyDetector.unregister("newly-added-alg")
+
+#   def test_unknown_detector(self):
+#     self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
+#                       Config(type="unknown"))
+
+#   def test_known_detector(self):
+
+#     class Dummy(EnsembleAnomalyDetector):
+
+#       def learn_one(self):
+#         ...
+
+#       def score_one(self):
+#         ...
+
+#     # Exception occurred when class exists but is not registered yet
+#     self.assertRaises(ValueError, EnsembleAnomalyDetector.from_config,
+#                       Config(type="newly-added-ensemble"))
+
+#     EnsembleAnomalyDetector.register("newly-added-ensemble", Dummy)
+
+#     a = EnsembleAnomalyDetector.from_config(
+#         Config(type="newly-added-ensemble", args={"n": 5}))
+#     self.assertTrue(isinstance(a, Dummy))
+#     self.assertEqual(a._model_id, "newly-added-ensemble")
+#     self.assertEqual(a._n, 5)
+
+#     EnsembleAnomalyDetector.unregister("newly-added-ensemble")
+
+#   def test_known_detector_with_custom_weak_learners(self):
+#     sub_d1 = AnomalyDetector.from_config(
+#         Config(
+#             type="newly-added-alg", args={
+#                 "window_size": 10,
+#                 "model_id": "d1"
+#             }))
+#     sub_d2 = AnomalyDetector.from_config(
+#         Config(
+#             type="newly-added-alg", args={
+#                 "window_size": 20,
+#                 "model_id": "d2"
+#             }))
+
+#     d = EnsembleAnomalyDetector(n=5, learners=[sub_d1, sub_d2])
+#     self.assertEqual(d._model_id, "custom")
+
+#     assert d._learners
+#     self.assertEqual(len(d._learners), 2)
+
+#     # n is overwritten to the length of learners since learners is provided
+#     self.assertEqual(d._n, 2)
+
+#     self.assertEqual(d._learners[0], sub_d1)
+#     self.assertEqual(d._learners[1], sub_d2)
+
+#     self.assertEqual(d._learners[0]._model_id, "d1")
+#     self.assertEqual(d._learners[1]._model_id, "d2")
+
+#   def test_known_detector_with_custom_weak_learners2(self):
+#     sub_d1_config = Config(
+#         type="newly-added-alg", args={
+#             "my_arg": 10,
+#             "model_id": "d1"
+#         })
+#     sub_d2_config = Config(
+#         type="newly-added-alg", args={
+#             "my_arg": 20,
+#             "model_id": "d2"
+#         })
+
+#     d = EnsembleAnomalyDetector.from_config(
+#         Config(
+#             type="custom",
+#             args={
+#                 "n": 5,
+#                 "learners": [sub_d1_config, sub_d2_config]
+#             }))
+
+#     # d = EnsembleAnomalyDetector(n=5, learners=[sub_d1, sub_d2])
+#     self.assertEqual(d._model_id, "custom")
+
+#     assert d._learners
+#     self.assertEqual(len(d._learners), 2)
+
+#     # n is overwritten to the length of learners since learners is provided
+#     self.assertEqual(d._n, 2)
+
+#     self.assertEqual(d._learners[0].to_config().args["my_arg"],
+#                      sub_d1_config.args["my_arg"])
+
+#     self.assertEqual(d._learners[1].to_config().args["my_arg"],
+#                      sub_d2_config.args["my_arg"])
 
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.INFO)

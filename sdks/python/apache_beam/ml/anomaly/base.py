@@ -26,12 +26,56 @@ from typing import Any
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Protocol
 from typing import Type
 from typing import TypeVar
+from typing import runtime_checkable
 
 import apache_beam as beam
 
 ConfigT = TypeVar('ConfigT', bound='Configurable')
+
+KNOWN_CONFIGURABLE = {}
+
+
+def register_configurable(cls, key=None, error_if_exists=True) -> None:
+  if key is None:
+    key = cls.__name__
+
+  if key in KNOWN_CONFIGURABLE and error_if_exists:
+    raise ValueError(f"{key} is already registered for configurable")
+
+  KNOWN_CONFIGURABLE[key] = cls
+  cls._key = key
+
+
+@runtime_checkable
+class Configurable(Protocol):
+  _key = None
+
+  @property
+  def configurable(self) -> bool:
+    return True
+
+
+def configurable(cls):
+  original_init = cls.__init__
+
+  def new_init(self, *args, **kwargs):
+    if not hasattr(self, "_init_params"):
+      params = dict(
+          zip(
+              inspect.signature(original_init).parameters.keys(),
+              (None,) + args))
+      del params['self']
+      params.update(**kwargs)
+      self._init_params = params
+    original_init(self, *args, **kwargs)
+
+  cls.__init__ = new_init
+  cls._key = None
+  cls.configurable = True
+  return cls
 
 
 @dataclasses.dataclass(frozen=True)
@@ -39,85 +83,60 @@ class Config():
   type: str
   args: dict[str, Any] = dataclasses.field(default_factory=dict)
 
-
-class Configurable():
-  _skip_list = ["self"]
-  _known_subclasses = {}  # a mutable class variable, sharing by all subclasses
-  _key = None
-
-  @classmethod
-  def register(cls, name, subclass, error_if_exists=True) -> None:
-    if name in cls._known_subclasses and error_if_exists:
-      raise ValueError(f"{name} is already registered for {subclass.__name__}")
-    cls._known_subclasses[name] = subclass
-    subclass._key = name
-
-  @classmethod
-  def unregister(cls, name) -> None:
-    if name in cls._known_subclasses:
-      del cls._known_subclasses[name]
-
   @staticmethod
-  def _from_config_helper(v):
-    if isinstance(v, Config):
-      return Configurable.from_config(v)
+  def _from_configurable_helper(v):
+    if isinstance(v, Configurable):
+      return Config.from_configurable(v)
 
     if isinstance(v, List):
-      return [Configurable._from_config_helper(e) for e in v]
+      return [Config._from_configurable_helper(e) for e in v]
 
     return v
 
-  # TODO: change to Self (PEP 673) after the minimum python support of Beam
-  # reaches 3.11.
-  # Refer to https://github.com/python/typing/issues/58
   @classmethod
-  def from_config(cls: Type[ConfigT], config: Config) -> ConfigT:
-    if config is None:
-      raise ValueError("Config cannot be None")
+  def from_configurable(cls, configurable):
+    if not hasattr (type(configurable), '_key') or \
+        type(configurable)._key is None:
+      raise ValueError(
+          f"'{type(configurable).__name__}' not registered as Configurable. "
+          f"Call register_configurable({type(configurable).__name__})")
 
-    if config.type is None:
-      raise ValueError(f"Type not found in config {config}")
+    if not hasattr(configurable, '_init_params'):
+      raise ValueError(
+        f"{type(configurable).__name__}' not decorated with @configurable."
+      )
 
-    subclass = cls._known_subclasses.get(config.type, None)
-    if subclass is None:
-      raise ValueError(f"Unknown config type in config {config}")
+    args = {
+        k: Config._from_configurable_helper(v)
+        for k, v in configurable._init_params.items()
+    }
 
-    args = {k:Configurable._from_config_helper(v) for k,v in config.args.items()}
-    return subclass(**args)
+    return Config(type=configurable.__class__._key, args=args)
 
   @staticmethod
-  def _to_config_helper(v):
-    v_class = v.__class__
-    if issubclass(v_class, Configurable):
-      return v.to_config()
+  def _to_configurable_helper(v):
+    if isinstance(v, Config):
+      return Config.to_configurable(v)
 
-    if issubclass(v_class, List):
-      return [Configurable._to_config_helper(e) for e in v]
+    if isinstance(v, List):
+      return [Config._to_configurable_helper(e) for e in v]
 
     return v
 
-  def to_config(self) -> Config:
-    if self.__class__._key is None:
-      raise ValueError(f"Class {self.__class__.__name__} is not registered.")
+  def to_configurable(self) -> Configurable:
+    if self.type is None:
+      raise ValueError(f"Config type not found in {self}")
 
-    args = []
-    for cls in self.__class__.mro():
-      args.extend(inspect.getfullargspec(cls.__init__).args)
+    subclass = KNOWN_CONFIGURABLE.get(self.type, None)
+    if subclass is None:
+      raise ValueError(f"Unknown config type '{self.type}' in {self}")
 
-    config_args = {}
-    for arg in set(args):
-      if arg in self._skip_list:
-        continue
+    args = {
+      k: Config._to_configurable_helper(v)
+      for k, v in self.args.items()
+    }
 
-      if hasattr(self, f"_{arg}"):
-        v = getattr(self, f"_{arg}")
-        config_args[arg] = Configurable._to_config_helper(v)
-      else:
-        logging.debug("_%s not found in the attributes of object %s", arg,
-                      self.__class__.__name__)
-
-    ret = Config(type=self.__class__._key, args=config_args)
-    return ret
+    return subclass(**args)
 
 
 @dataclass(frozen=True)
@@ -136,7 +155,7 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
-class ThresholdFn(abc.ABC, Configurable):
+class ThresholdFn(abc.ABC):
 
   def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
@@ -157,7 +176,7 @@ class ThresholdFn(abc.ABC, Configurable):
     raise NotImplementedError
 
 
-class AggregationFn(abc.ABC, Configurable):
+class AggregationFn(abc.ABC):
 
   @abc.abstractmethod
   def apply(self,
@@ -165,7 +184,7 @@ class AggregationFn(abc.ABC, Configurable):
     raise NotImplementedError
 
 
-class AnomalyDetector(abc.ABC, Configurable):
+class AnomalyDetector(abc.ABC):
 
   def __init__(self,
                model_id: Optional[str] = None,
@@ -213,4 +232,30 @@ class EnsembleAnomalyDetector(AnomalyDetector):
   def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
 
-EnsembleAnomalyDetector.register("custom", EnsembleAnomalyDetector)
+
+# EnsembleAnomalyDetector.register("custom", EnsembleAnomalyDetector)
+
+#print(isinstance(a, Configurable))
+
+# @configurable
+# class Dummy(AnomalyDetector):
+
+#   def __init__(self, my_arg=None, **kwargs):
+#     self._my_arg = my_arg
+#     super().__init__(**kwargs)
+
+#   def learn_one(self):
+#     ...
+
+#   def score_one(self):
+#     ...
+
+# register_configurable(Dummy)
+
+# a = Dummy(my_arg=1234, features=["x1", "x2"])
+# conf = Config.from_configurable(a)
+
+# print(conf)
+# b = conf.to_configurable()
+# print(b)
+# print(b._my_arg)

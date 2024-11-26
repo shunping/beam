@@ -43,14 +43,14 @@ def run(argv=None, save_main_session=True):
       StandardAbsoluteDeviation(
           window_size=100,
           features=["x2"],
-          threshold_criterion=QuantileThreshold(0.99),
+          threshold_criterion=FixedThreshold(3),
           model_id="sad_x2"))
 
   detectors.append(
       MedianAbsoluteDeviation(
           window_size=50,
           features=["x1"],
-          threshold_criterion=FixedThreshold(3),
+          threshold_criterion=QuantileThreshold(0.99),
           model_id="mad_x1"))
 
   detectors.append(
@@ -67,9 +67,9 @@ def run(argv=None, save_main_session=True):
     _ = (
         p | beam.Create(data)
         | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-        | AnomalyDetection(
-            detectors,
-            aggregation_strategy=MajorityVote())
+        | AnomalyDetection(detectors,
+                           # aggregation_strategy=MajorityVote()
+                          )
         | beam.Map(logging.info))
 
 

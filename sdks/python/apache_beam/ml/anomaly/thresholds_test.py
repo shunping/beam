@@ -22,6 +22,7 @@ import apache_beam as beam
 from apache_beam.ml.anomaly import thresholds
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
+from apache_beam.ml.anomaly.base import Config
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
@@ -55,8 +56,9 @@ class TestFixedThreshold(unittest.TestCase):
           | beam.Create(input)
           | beam.ParDo(
               thresholds.StatelessThresholdDoFn(
-                  thresholds.FixedThreshold(2, normal_label=0,
-                                            outlier_label=1).to_config())))
+                  Config.from_configurable(
+                      thresholds.FixedThreshold(
+                          2, normal_label=0, outlier_label=1)))))
 
       assert_that(result, equal_to(expected))
 
@@ -106,9 +108,9 @@ class TestQuantileThreshold(unittest.TestCase):
           # use median just for test convenience
           | beam.ParDo(
               thresholds.StatefulThresholdDoFn(
-                  thresholds.QuantileThreshold(
-                      quantile=0.5, normal_label=0,
-                      outlier_label=1).to_config())))
+                  Config.from_configurable(
+                      thresholds.QuantileThreshold(
+                          quantile=0.5, normal_label=0, outlier_label=1)))))
 
       assert_that(result, equal_to(expected))
 

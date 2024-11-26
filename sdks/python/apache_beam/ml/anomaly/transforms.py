@@ -42,7 +42,7 @@ class _ScoreAndLearn(beam.DoFn):
 
   def __init__(self, detector_config: Config):
     self._detector_config = detector_config
-    self._detector_config.args["initialize_model"] =  True
+    self._detector_config.args["initialize_model"] = True
     # object.__delattr__(self._detector, "algorithm_args")
     # self._canonical_alg = self._detector.type.lower()
     # if not self._canonical_alg in KNOWN_ALGORITHMS:
@@ -64,15 +64,16 @@ class _ScoreAndLearn(beam.DoFn):
               **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
     k1, (k2, data) = element
-    self._underlying = model_state.read()  # type: ignore
+    self._underlying: AnomalyDetector = model_state.read()  # type: ignore
     if self._underlying is None:
-      self._underlying = AnomalyDetector.from_config(self._detector_config)
+      self._underlying = Config.to_configurable(
+          self._detector_config)  # type: ignore
 
     yield k1, (k2,
                AnomalyResult(
                    example=data,
                    prediction=AnomalyPrediction(
-                       model_id=self._detector_config.args["model_id"],
+                       model_id=self._underlying._model_id,
                        score=self.score_and_learn(data))))
 
     model_state.write(self._underlying)  # type: ignore
@@ -96,11 +97,15 @@ class _RunThresholdCriterion(
       if threshold_fn.is_stateful:
         postprocess_result = (
             input
-            | beam.ParDo(thresholds.StatefulThresholdDoFn(threshold_fn.to_config())))
+            | beam.ParDo(
+                thresholds.StatefulThresholdDoFn(
+                    Config.from_configurable(threshold_fn))))
       else:
         postprocess_result = (
             input
-            | beam.ParDo(thresholds.StatelessThresholdDoFn(threshold_fn.to_config())))
+            | beam.ParDo(
+                thresholds.StatelessThresholdDoFn(
+                    Config.from_configurable(threshold_fn))))
     else:
       postprocess_result: Any = input
 
@@ -123,8 +128,9 @@ class _RunOneDetector(
         input
         | beam.Reshuffle()
         | f"Score and Learn ({model_uuid})" >> beam.ParDo(
-            _ScoreAndLearn(self._detector.to_config())).with_output_types(
-                Tuple[Any, Tuple[Any, AnomalyResult]])
+            _ScoreAndLearn(Config.from_configurable(
+                self._detector))).with_output_types(
+                    Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
             self._detector._model_id, self._detector._threshold_criterion))
 
@@ -208,10 +214,11 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
 
     if root_model_id is None:
       root_model_id = "root"
-    self._root = EnsembleAnomalyDetector(model_id=root_model_id,
-                                         learners = detectors,
-                                         threshold_criterion=threshold_criterion,
-                                         aggregation_strategy=aggregation_strategy)
+    self._root = EnsembleAnomalyDetector(
+        model_id=root_model_id,
+        learners=detectors,
+        threshold_criterion=threshold_criterion,
+        aggregation_strategy=aggregation_strategy)
 
     object.__setattr__(self._root, "model_id", root_model_id)
 

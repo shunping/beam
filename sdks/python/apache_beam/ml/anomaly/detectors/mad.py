@@ -18,9 +18,11 @@
 import apache_beam as beam
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyDetector
+from apache_beam.ml.anomaly.base import register_configurable
+from apache_beam.ml.anomaly.base import configurable
 from apache_beam.ml.anomaly.univariate import EPSILON
 
-
+@configurable
 class MedianAbsoluteDeviation(AnomalyDetector):
   def __init__(self, window_size=10, scale_factor=0.67449, **kwargs):
     super().__init__(**kwargs)
@@ -58,4 +60,4 @@ class MedianAbsoluteDeviation(AnomalyDetector):
       return float('NaN')
     return abs((v - median) / mad * self._scale_factor)
 
-AnomalyDetector.register("mad", MedianAbsoluteDeviation)
+register_configurable(MedianAbsoluteDeviation, "mad")
