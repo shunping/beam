@@ -22,8 +22,9 @@ from typing import List
 from typing import Optional
 
 from apache_beam.ml.anomaly.base import Config
+from apache_beam.ml.anomaly.base import Configurable
 from apache_beam.ml.anomaly.base import configurable
-from apache_beam.ml.anomaly.base import register_configurable
+from apache_beam.ml.anomaly.base import _register_configurable
 from apache_beam.ml.anomaly.base import KNOWN_CONFIGURABLE
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
@@ -31,22 +32,102 @@ from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 
 class TestConfigurable(unittest.TestCase):
 
-  def testCallingRegisterOnBaseClass(self):
+  def testRegisterConfigurable(self):
 
-    class UnconfigurableStuff:
+    class MyClass():
       pass
+
+    self.assertNotIn("MyKey", KNOWN_CONFIGURABLE)
+    self.assertFalse(isinstance(MyClass, Configurable))
+    self.assertFalse(hasattr(MyClass(), '_key'))
+    self.assertFalse(hasattr(MyClass(), '_init_params'))
+
+    _register_configurable(MyClass, "MyKey")
+
+    self.assertIn("MyKey", KNOWN_CONFIGURABLE)
+    self.assertEqual(KNOWN_CONFIGURABLE["MyKey"], MyClass)
+    self.assertFalse(isinstance(MyClass(),
+                                Configurable))  # not yet a configurable
+    self.assertTrue(hasattr(MyClass(), '_key'))
+    self.assertFalse(hasattr(MyClass(), '_init_params'))
+
+    # By default, an error is raised if the key is duplicated
+    self.assertRaises(ValueError, _register_configurable, MyClass, "MyKey")
+
+    # But it is ok if a different key is used for the same class
+    _register_configurable(MyClass, "MyOtherKey")
+    self.assertIn("MyOtherKey", KNOWN_CONFIGURABLE)
+
+    # Or, use a parameter to suppress the error
+    _register_configurable(MyClass, "MyClass", error_if_exists=False)
+
+  def testDecorator(self):
+    # use decorator without parameter
+    @configurable
+    class MySecondClass():
+      pass
+
+    self.assertIn("MySecondClass", KNOWN_CONFIGURABLE)
+    self.assertEqual(KNOWN_CONFIGURABLE["MySecondClass"], MySecondClass)
+    self.assertTrue(isinstance(MySecondClass(), Configurable))
+
+    # use decorator with key parameter
+    @configurable(key="MyThirdKey")
+    class MyThirdClass():
+      pass
+
+    self.assertIn("MyThirdKey", KNOWN_CONFIGURABLE)
+    self.assertEqual(KNOWN_CONFIGURABLE["MyThirdKey"], MyThirdClass)
+
+  def testInitParamsInConfigurable(self):
 
     @configurable
-    class ConfigurableStuff:
-      pass
+    class MyClassWithInitParams():
 
-    self.assertNotIn("UnconfigurableStuff", KNOWN_CONFIGURABLE)
-    self.assertIn("ConfigurableStuff", KNOWN_CONFIGURABLE)
-    self.assertRaises(ValueError, register_configurable, ConfigurableStuff,
-                      "NewStuff")
+      def __init__(self, arg_1, arg_2=2, arg_3="3", **kwargs):
+        pass
 
-    # no error raised
-    register_configurable(ConfigurableStuff, "NewStuff", error_if_exists=False)
+    a = MyClassWithInitParams(10, arg_3="30", arg_4=40)
+    self.assertEqual(
+        a._init_params,  # type: ignore
+        {
+            'arg_1': 10,
+            'arg_3': '30',
+            'arg_4': 40
+        })
+
+    # inheritance of configurable
+    @configurable
+    class MyDerivedClassWithInitParams(MyClassWithInitParams):
+
+      def __init__(self, new_arg_1, new_arg_2=200, new_arg_3="300", **kwargs):
+        super().__init__(**kwargs)
+
+    b = MyDerivedClassWithInitParams(
+        1000, arg_1=11, arg_2=20, new_arg_2=2000, arg_4=4000)
+    self.assertEqual(
+        b._init_params,  # type: ignore
+        {
+            'new_arg_1': 1000,
+            'arg_1': 11,
+            'arg_2': 20,
+            'new_arg_2': 2000,
+            'arg_4': 4000
+        })
+
+    # composite of configurable
+    @configurable
+    class MyCompositeClassWithInitParams():
+      def __init__(self, my_class: Optional[MyClassWithInitParams] = None):
+        pass
+
+    c = MyCompositeClassWithInitParams(a)
+    self.assertEqual(
+      c._init_params,  # type: ignore
+      {
+        'my_class': a
+      }
+    )
 
   def testToConfigurableAndFromConfigurable(self):
 

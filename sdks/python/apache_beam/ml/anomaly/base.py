@@ -43,7 +43,7 @@ class Configurable(Protocol):
 ConfigT = TypeVar('ConfigT', bound=Configurable)
 
 
-def register_configurable(cls, key=None, error_if_exists=True) -> None:
+def _register_configurable(cls, key=None, error_if_exists=True) -> None:
   if key is None:
     key = cls.__name__
 
@@ -73,7 +73,7 @@ def configurable(my_cls=None, /, *, key=None):
 
     cls.__init__ = new_init
 
-    register_configurable(cls, key)
+    _register_configurable(cls, key)
 
     return cls
 
