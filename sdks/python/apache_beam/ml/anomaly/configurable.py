@@ -15,40 +15,39 @@
 # limitations under the License.
 #
 
+import abc
 import dataclasses
 import inspect
 from typing import Any
 from typing import List
-from typing import Protocol
 from typing import TypeVar
-from typing import runtime_checkable
 
 KNOWN_CONFIGURABLE = {}
 
 
-@runtime_checkable
-class Configurable(Protocol):
+class Configurable(abc.ABC):
   _key: str
   _init_params: dict[str, Any]
 
 
 ConfigT = TypeVar('ConfigT', bound=Configurable)
 
+def configurable(my_cls=None, /, *, key=None, error_if_exists=True):
+  def _register(cls) -> None:
+    nonlocal key
+    if key is None:
+      key = cls.__name__
 
-def _register_configurable(cls, key=None, error_if_exists=True) -> None:
-  if key is None:
-    key = cls.__name__
+    if key in KNOWN_CONFIGURABLE and error_if_exists:
+      raise ValueError(f"{key} is already registered for configurable")
 
-  if key in KNOWN_CONFIGURABLE and error_if_exists:
-    raise ValueError(f"{key} is already registered for configurable")
+    KNOWN_CONFIGURABLE[key] = cls
 
-  KNOWN_CONFIGURABLE[key] = cls
+    cls._key = key
 
-  cls._key = key
+  def _register_and_track_init_params(cls):
+    _register(cls)
 
-
-def configurable(my_cls=None, /, *, key=None):
-  def wrapper(cls):
     original_init = cls.__init__
 
     def new_init(self, *args, **kwargs):
@@ -63,15 +62,12 @@ def configurable(my_cls=None, /, *, key=None):
       original_init(self, *args, **kwargs)
 
     cls.__init__ = new_init
-
-    _register_configurable(cls, key)
-
     return cls
 
   if my_cls is None:
-    return wrapper
+    return _register_and_track_init_params
 
-  return wrapper(my_cls)
+  return  _register_and_track_init_params(my_cls)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,7 +86,7 @@ class Config():
     return v
 
   @classmethod
-  def from_configurable(cls, configurable):
+  def from_configurable(cls, configurable: Configurable):
     if getattr(type(configurable), '_key', None) is None:
       raise ValueError(
           f"'{type(configurable).__name__}' not registered as Configurable. "

@@ -25,42 +25,34 @@ from apache_beam.ml.anomaly.configurable import Config
 from apache_beam.ml.anomaly.configurable import Configurable
 from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLE
-from apache_beam.ml.anomaly.configurable import _register_configurable
 
 
 class TestConfigurable(unittest.TestCase):
   def test_register_configurable(self):
-    class MyClass():
+    class MyClass(Configurable):
       pass
 
     self.assertNotIn("MyKey", KNOWN_CONFIGURABLE)
-    self.assertFalse(isinstance(MyClass, Configurable))
-    self.assertFalse(hasattr(MyClass(), '_key'))
-    self.assertFalse(hasattr(MyClass(), '_init_params'))
 
-    _register_configurable(MyClass, "MyKey")
+    MyClass = configurable(key="MyKey")(MyClass)
 
     self.assertIn("MyKey", KNOWN_CONFIGURABLE)
     self.assertEqual(KNOWN_CONFIGURABLE["MyKey"], MyClass)
-    self.assertFalse(
-        isinstance(MyClass(), Configurable))  # not yet a configurable
-    self.assertTrue(hasattr(MyClass(), '_key'))
-    self.assertFalse(hasattr(MyClass(), '_init_params'))
 
     # By default, an error is raised if the key is duplicated
-    self.assertRaises(ValueError, _register_configurable, MyClass, "MyKey")
+    self.assertRaises(ValueError, configurable(key="MyKey"), MyClass)
 
     # But it is ok if a different key is used for the same class
-    _register_configurable(MyClass, "MyOtherKey")
+    _ = configurable(key="MyOtherKey")(MyClass)
     self.assertIn("MyOtherKey", KNOWN_CONFIGURABLE)
 
     # Or, use a parameter to suppress the error
-    _register_configurable(MyClass, "MyClass", error_if_exists=False)
+    configurable(key="MyKey", error_if_exists=False)(MyClass)
 
   def test_decorator(self):
     # use decorator without parameter
     @configurable
-    class MySecondClass():
+    class MySecondClass(Configurable):
       pass
 
     self.assertIn("MySecondClass", KNOWN_CONFIGURABLE)
@@ -69,7 +61,7 @@ class TestConfigurable(unittest.TestCase):
 
     # use decorator with key parameter
     @configurable(key="MyThirdKey")
-    class MyThirdClass():
+    class MyThirdClass(Configurable):
       pass
 
     self.assertIn("MyThirdKey", KNOWN_CONFIGURABLE)
@@ -77,7 +69,7 @@ class TestConfigurable(unittest.TestCase):
 
   def test_init_params_in_configurable(self):
     @configurable
-    class MyClassWithInitParams():
+    class MyClassWithInitParams(Configurable):
       def __init__(self, arg_1, arg_2=2, arg_3="3", **kwargs):
         pass
 
@@ -122,12 +114,12 @@ class TestConfigurable(unittest.TestCase):
   def test_from_and_to_configurable(self):
     @configurable
     @dataclasses.dataclass
-    class Product():
+    class Product(Configurable):
       name: str
       price: float
 
     @configurable(key="shopping_entry")
-    class Entry():
+    class Entry(Configurable):
       def __init__(self, product: Product, quantity: int = 1):
         self._product = product
         self._quantity = quantity
@@ -138,7 +130,7 @@ class TestConfigurable(unittest.TestCase):
 
     @configurable(key="shopping_cart")
     @dataclasses.dataclass
-    class ShoppingCart():
+    class ShoppingCart(Configurable):
       user_id: str
       entries: List[Entry]
 
