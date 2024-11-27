@@ -22,13 +22,13 @@ import apache_beam as beam
 from apache_beam.ml.anomaly import thresholds
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AnomalyResult
-from apache_beam.ml.anomaly.configurable import Config
 from apache_beam.testing.test_pipeline import TestPipeline
 from apache_beam.testing.util import assert_that
 from apache_beam.testing.util import equal_to
 
 
 class TestFixedThreshold(unittest.TestCase):
+
   def test_threshold(self):
     input = [
         (1, (2, AnomalyResult(beam.Row(x=10), AnomalyPrediction(score=1)))),
@@ -36,27 +36,18 @@ class TestFixedThreshold(unittest.TestCase):
         (1, (4, AnomalyResult(beam.Row(x=20), AnomalyPrediction(score=3)))),
     ]
     expected = [
-        (
-            1,
-            (
-                2,
-                AnomalyResult(
-                    beam.Row(x=10),
-                    AnomalyPrediction(score=1, label=0, threshold=2)))),
-        (
-            1,
-            (
-                3,
-                AnomalyResult(
-                    beam.Row(x=20),
-                    AnomalyPrediction(score=2, label=1, threshold=2)))),
-        (
-            1,
-            (
-                4,
-                AnomalyResult(
-                    beam.Row(x=20),
-                    AnomalyPrediction(score=3, label=1, threshold=2)))),
+        (1, (2,
+             AnomalyResult(
+                 beam.Row(x=10),
+                 AnomalyPrediction(score=1, label=0, threshold=2)))),
+        (1, (3,
+             AnomalyResult(
+                 beam.Row(x=20),
+                 AnomalyPrediction(score=2, label=1, threshold=2)))),
+        (1, (4,
+             AnomalyResult(
+                 beam.Row(x=20),
+                 AnomalyPrediction(score=3, label=1, threshold=2)))),
     ]
     with TestPipeline() as p:
       result = (
@@ -64,14 +55,14 @@ class TestFixedThreshold(unittest.TestCase):
           | beam.Create(input)
           | beam.ParDo(
               thresholds.StatelessThresholdDoFn(
-                  Config.from_configurable(
-                      thresholds.FixedThreshold(
-                          2, normal_label=0, outlier_label=1)))))
+                  thresholds.FixedThreshold(2, normal_label=0,
+                                            outlier_label=1).to_config())))
 
       assert_that(result, equal_to(expected))
 
 
 class TestQuantileThreshold(unittest.TestCase):
+
   def test_threshold(self):
     # use the input data with two keys to test stateful threshold function
     input = [
@@ -83,48 +74,30 @@ class TestQuantileThreshold(unittest.TestCase):
         (2, (4, AnomalyResult(beam.Row(x=60), AnomalyPrediction(score=30)))),
     ]
     expected = [
-        (
-            1,
-            (
-                2,
-                AnomalyResult(
-                    beam.Row(x=10),
-                    AnomalyPrediction(score=1, label=1, threshold=1)))),
-        (
-            1,
-            (
-                3,
-                AnomalyResult(
-                    beam.Row(x=20),
-                    AnomalyPrediction(score=2, label=1, threshold=1.5)))),
-        (
-            2,
-            (
-                2,
-                AnomalyResult(
-                    beam.Row(x=40),
-                    AnomalyPrediction(score=10, label=1, threshold=10)))),
-        (
-            2,
-            (
-                3,
-                AnomalyResult(
-                    beam.Row(x=50),
-                    AnomalyPrediction(score=20, label=1, threshold=15)))),
-        (
-            1,
-            (
-                4,
-                AnomalyResult(
-                    beam.Row(x=30),
-                    AnomalyPrediction(score=3, label=1, threshold=2)))),
-        (
-            2,
-            (
-                4,
-                AnomalyResult(
-                    beam.Row(x=60),
-                    AnomalyPrediction(score=30, label=1, threshold=20)))),
+        (1, (2,
+             AnomalyResult(
+                 beam.Row(x=10),
+                 AnomalyPrediction(score=1, label=1, threshold=1)))),
+        (1, (3,
+             AnomalyResult(
+                 beam.Row(x=20),
+                 AnomalyPrediction(score=2, label=1, threshold=1.5)))),
+        (2, (2,
+             AnomalyResult(
+                 beam.Row(x=40),
+                 AnomalyPrediction(score=10, label=1, threshold=10)))),
+        (2, (3,
+             AnomalyResult(
+                 beam.Row(x=50),
+                 AnomalyPrediction(score=20, label=1, threshold=15)))),
+        (1, (4,
+             AnomalyResult(
+                 beam.Row(x=30),
+                 AnomalyPrediction(score=3, label=1, threshold=2)))),
+        (2, (4,
+             AnomalyResult(
+                 beam.Row(x=60),
+                 AnomalyPrediction(score=30, label=1, threshold=20)))),
     ]
     with TestPipeline() as p:
       result = (
@@ -133,9 +106,9 @@ class TestQuantileThreshold(unittest.TestCase):
           # use median just for test convenience
           | beam.ParDo(
               thresholds.StatefulThresholdDoFn(
-                  Config.from_configurable(
-                      thresholds.QuantileThreshold(
-                          quantile=0.5, normal_label=0, outlier_label=1)))))
+                  thresholds.QuantileThreshold(
+                      quantile=0.5, normal_label=0,
+                      outlier_label=1).to_config())))
 
       assert_that(result, equal_to(expected))
 

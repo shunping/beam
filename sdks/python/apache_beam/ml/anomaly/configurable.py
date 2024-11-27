@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from __future__ import annotations
 
 import abc
 import dataclasses
@@ -24,13 +25,64 @@ from typing import TypeVar
 
 KNOWN_CONFIGURABLE = {}
 
+ConfigT = TypeVar('ConfigT', bound='Configurable')
+
+@dataclasses.dataclass(frozen=True)
+class Config():
+  type: str
+  args: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 class Configurable(abc.ABC):
   _key: str
   _init_params: dict[str, Any]
 
+  @staticmethod
+  def _from_config_helper(v):
+    if isinstance(v, Config):
+      return Configurable.from_config(v)
 
-ConfigT = TypeVar('ConfigT', bound=Configurable)
+    if isinstance(v, List):
+      return [Configurable._from_config_helper(e) for e in v]
+
+    return v
+
+  @classmethod
+  def from_config(cls, config: Config) -> Configurable:
+    if config.type is None:
+      raise ValueError(f"Config type not found in {config}")
+
+    subclass = KNOWN_CONFIGURABLE.get(config.type, None)
+    if subclass is None:
+      raise ValueError(f"Unknown config type '{config.type}' in {config}")
+
+    args = {k: Configurable._from_config_helper(v) for k, v in config.args.items()}
+
+    return subclass(**args)
+
+  @staticmethod
+  def _to_config_helper(v):
+    if isinstance(v, Configurable):
+      return v.to_config()
+
+    if isinstance(v, List):
+      return [Configurable._to_config_helper(e) for e in v]
+
+    return v
+
+  def to_config(self) -> Config:
+    if getattr(type(self), '_key', None) is None:
+      raise ValueError(
+            f"'{type(self).__name__}' not registered as Configurable. "
+            f"Decorate ({type(configurable).__name__}) with @configurable")
+
+    args = {
+        k: self._to_config_helper(v)
+        for k,
+        v in self._init_params.items()
+    }
+
+    return Config(type=self.__class__._key, args=args)
+
 
 def configurable(my_cls=None, /, *, key=None, error_if_exists=True):
   def _register(cls) -> None:
@@ -68,60 +120,3 @@ def configurable(my_cls=None, /, *, key=None, error_if_exists=True):
     return _register_and_track_init_params
 
   return  _register_and_track_init_params(my_cls)
-
-
-@dataclasses.dataclass(frozen=True)
-class Config():
-  type: str
-  args: dict[str, Any] = dataclasses.field(default_factory=dict)
-
-  @staticmethod
-  def _from_configurable_helper(v):
-    if isinstance(v, Configurable):
-      return Config.from_configurable(v)
-
-    if isinstance(v, List):
-      return [Config._from_configurable_helper(e) for e in v]
-
-    return v
-
-  @classmethod
-  def from_configurable(cls, configurable: Configurable):
-    if getattr(type(configurable), '_key', None) is None:
-      raise ValueError(
-          f"'{type(configurable).__name__}' not registered as Configurable. "
-          f"Call register_configurable({type(configurable).__name__})")
-
-    if not hasattr(configurable, '_init_params'):
-      raise ValueError(
-          f"{type(configurable).__name__}' not decorated with @configurable.")
-
-    args = {
-        k: Config._from_configurable_helper(v)
-        for k,
-        v in configurable._init_params.items()
-    }
-
-    return Config(type=configurable.__class__._key, args=args)
-
-  @staticmethod
-  def _to_configurable_helper(v):
-    if isinstance(v, Config):
-      return Config.to_configurable(v)
-
-    if isinstance(v, List):
-      return [Config._to_configurable_helper(e) for e in v]
-
-    return v
-
-  def to_configurable(self) -> ConfigT:  # type: ignore
-    if self.type is None:
-      raise ValueError(f"Config type not found in {self}")
-
-    subclass = KNOWN_CONFIGURABLE.get(self.type, None)
-    if subclass is None:
-      raise ValueError(f"Unknown config type '{self.type}' in {self}")
-
-    args = {k: Config._to_configurable_helper(v) for k, v in self.args.items()}
-
-    return subclass(**args)

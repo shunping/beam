@@ -32,6 +32,9 @@ class TestConfigurable(unittest.TestCase):
     class MyClass(Configurable):
       pass
 
+    # class is not decorated/registered
+    self.assertRaises(ValueError, MyClass().to_config)
+
     self.assertNotIn("MyKey", KNOWN_CONFIGURABLE)
 
     MyClass = configurable(key="MyKey")(MyClass)
@@ -75,7 +78,7 @@ class TestConfigurable(unittest.TestCase):
 
     a = MyClassWithInitParams(10, arg_3="30", arg_4=40)
     self.assertEqual(
-        a._init_params,  # type: ignore
+        a._init_params,
         {
             'arg_1': 10,
             'arg_3': '30',
@@ -91,7 +94,7 @@ class TestConfigurable(unittest.TestCase):
     b = MyDerivedClassWithInitParams(
         1000, arg_1=11, arg_2=20, new_arg_2=2000, arg_4=4000)
     self.assertEqual(
-        b._init_params,  # type: ignore
+        b._init_params,
         {
             'new_arg_1': 1000,
             'arg_1': 11,
@@ -102,13 +105,13 @@ class TestConfigurable(unittest.TestCase):
 
     # composite of configurable
     @configurable
-    class MyCompositeClassWithInitParams():
+    class MyCompositeClassWithInitParams(Configurable):
       def __init__(self, my_class: Optional[MyClassWithInitParams] = None):
         pass
 
     c = MyCompositeClassWithInitParams(a)
     self.assertEqual(
-        c._init_params,  # type: ignore
+        c._init_params,
         {'my_class': a})
 
   def test_from_and_to_configurable(self):
@@ -140,8 +143,8 @@ class TestConfigurable(unittest.TestCase):
         "Product", args={
             'name': 'orange', 'price': 1.0
         })
-    self.assertEqual(Config.from_configurable(orange), expected_orange_config)
-    self.assertEqual(Config.to_configurable(expected_orange_config), orange)
+    self.assertEqual(orange.to_config(), expected_orange_config)
+    self.assertEqual(Configurable.from_config(expected_orange_config), orange)
 
     entry_1 = Entry(product=orange)
 
@@ -150,8 +153,8 @@ class TestConfigurable(unittest.TestCase):
             'product': expected_orange_config,
         })
 
-    self.assertEqual(Config.from_configurable(entry_1), expected_entry_config_1)
-    self.assertEqual(Config.to_configurable(expected_entry_config_1), entry_1)
+    self.assertEqual(entry_1.to_config(), expected_entry_config_1)
+    self.assertEqual(Configurable.from_config(expected_entry_config_1), entry_1)
 
     banana = Product("banana", 0.5)
     expected_banana_config = Config(
@@ -174,9 +177,9 @@ class TestConfigurable(unittest.TestCase):
         })
 
     self.assertEqual(
-        Config.from_configurable(shopping_cart), expected_shopping_cart_config)
+        shopping_cart.to_config(), expected_shopping_cart_config)
     self.assertEqual(
-        Config.to_configurable(expected_shopping_cart_config), shopping_cart)
+        Configurable.from_config(expected_shopping_cart_config), shopping_cart)
 
 
 if __name__ == '__main__':

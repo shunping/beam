@@ -25,6 +25,7 @@ from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import AggregationFn
 from apache_beam.ml.anomaly.configurable import Config
+from apache_beam.ml.anomaly.configurable import Configurable
 from apache_beam.ml.anomaly.configurable import configurable
 
 
@@ -60,7 +61,7 @@ class TestAnomalyDetector(unittest.TestCase):
 
   def test_unknown_detector(self):
     self.assertRaises(
-        ValueError, Config.to_configurable, Config(type="unknown"))
+        ValueError, Configurable.from_config, Config(type="unknown"))
 
   def test_model_id_on_known_detector(self):
     a = self.Dummy(
@@ -72,7 +73,7 @@ class TestAnomalyDetector(unittest.TestCase):
     self.assertEqual(a._target, "ABC")
     self.assertEqual(a._my_arg, "abc")
     self.assertEqual(
-        a._init_params,  # type: ignore
+        a._init_params,
         {
             "my_arg": "abc",
             "target": "ABC",
@@ -88,7 +89,7 @@ class TestAnomalyDetector(unittest.TestCase):
     self.assertEqual(b._target, "EFG")
     self.assertEqual(b._my_arg, "efg")
     self.assertEqual(
-        b._init_params,  # type: ignore
+        b._init_params,
         {
             "model_id": "my_dummy",
             "my_arg": "efg",
@@ -103,7 +104,7 @@ class TestAnomalyDetector(unittest.TestCase):
         target="HIJ",
         threshold_criterion=self.DummyThreshold(4))
 
-    config = Config.from_configurable(obj)
+    config = obj.to_config()
     expected_config = Config(
         type="Dummy",
         args={
@@ -115,7 +116,7 @@ class TestAnomalyDetector(unittest.TestCase):
         })
     self.assertEqual(config, expected_config)
 
-    new_obj = config.to_configurable()
+    new_obj = Configurable.from_config(config)
     self.assertEqual(obj, new_obj)
 
 
@@ -188,12 +189,10 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
             ],
             "aggregation_strategy": Config(type="DummyAggregation", args={})
         })
-    config = Config.from_configurable(ensemble)
-    print(config)
-    print(expected_config)
+    config = ensemble.to_config()
     self.assertEqual(config, expected_config)
 
-    new_ensemble = Config.to_configurable(config)
+    new_ensemble = Configurable.from_config(config)
     self.assertEqual(ensemble, new_ensemble)
 
 
