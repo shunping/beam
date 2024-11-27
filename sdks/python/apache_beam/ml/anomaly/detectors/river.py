@@ -25,7 +25,6 @@ from apache_beam.ml.anomaly.base import AnomalyDetector
 
 
 class RiverAnomalyDetector(AnomalyDetector):
-
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
     self._river_model: Optional[RiverModel] = None
@@ -38,7 +37,6 @@ class RiverAnomalyDetector(AnomalyDetector):
 
 
 class LocalOutlierFactor(RiverAnomalyDetector):
-
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
     kwargs.pop("features")

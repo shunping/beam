@@ -48,7 +48,6 @@ def _register_configurable(cls, key=None, error_if_exists=True) -> None:
 
 
 def configurable(my_cls=None, /, *, key=None):
-
   def wrapper(cls):
     original_init = cls.__init__
 
@@ -57,7 +56,7 @@ def configurable(my_cls=None, /, *, key=None):
         params = dict(
             zip(
                 inspect.signature(original_init).parameters.keys(),
-                (None,) + args))
+                (None, ) + args))
         del params['self']
         params.update(**kwargs)
         self._init_params = params
@@ -103,7 +102,8 @@ class Config():
 
     args = {
         k: Config._from_configurable_helper(v)
-        for k, v in configurable._init_params.items()
+        for k,
+        v in configurable._init_params.items()
     }
 
     return Config(type=configurable.__class__._key, args=args)

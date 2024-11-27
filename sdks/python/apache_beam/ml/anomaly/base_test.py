@@ -29,10 +29,8 @@ from apache_beam.ml.anomaly.configurable import configurable
 
 
 class TestAnomalyDetector(unittest.TestCase):
-
   @configurable
   class DummyThreshold(ThresholdFn):
-
     def __init__(self, my_threshold_arg=None):
       ...
 
@@ -47,7 +45,6 @@ class TestAnomalyDetector(unittest.TestCase):
 
   @configurable
   class Dummy(AnomalyDetector):
-
     def __init__(self, my_arg=None, **kwargs):
       self._my_arg = my_arg
       super().__init__(**kwargs)
@@ -62,8 +59,8 @@ class TestAnomalyDetector(unittest.TestCase):
       return self._my_arg == value._my_arg
 
   def test_unknown_detector(self):
-    self.assertRaises(ValueError, Config.to_configurable,
-                      Config(type="unknown"))
+    self.assertRaises(
+        ValueError, Config.to_configurable, Config(type="unknown"))
 
   def test_model_id_on_known_detector(self):
     a = self.Dummy(
@@ -110,14 +107,11 @@ class TestAnomalyDetector(unittest.TestCase):
     expected_config = Config(
         type="Dummy",
         args={
-            "my_arg":
-                "hij",
-            "model_id":
-                "my_dummy",
-            "target":
-                "HIJ",
-            "threshold_criterion":
-                Config(type="DummyThreshold", args={"my_threshold_arg": 4})
+            "my_arg": "hij",
+            "model_id": "my_dummy",
+            "target": "HIJ",
+            "threshold_criterion": Config(
+                type="DummyThreshold", args={"my_threshold_arg": 4})
         })
     self.assertEqual(config, expected_config)
 
@@ -126,16 +120,13 @@ class TestAnomalyDetector(unittest.TestCase):
 
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
-
   @configurable
   class DummyAggregation(AggregationFn):
-
     def apply(self, x):
       ...
 
   @configurable
   class DummyEnsemble(EnsembleAnomalyDetector):
-
     def __init__(self, my_ensemble_arg=None, **kwargs):
       super().__init__(**kwargs)
       self._my_ensemble_arg = my_ensemble_arg
@@ -146,13 +137,12 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     def score_one(self):
       ...
 
-    def __eq__(self,
-               value: 'TestEnsembleAnomalyDetector.DummyEnsemble') -> bool:
+    def __eq__(
+        self, value: 'TestEnsembleAnomalyDetector.DummyEnsemble') -> bool:
       return self._my_ensemble_arg == value._my_ensemble_arg
 
   @configurable
   class DummyWeakLearner(AnomalyDetector):
-
     def __init__(self, my_arg=None, **kwargs):
       super().__init__(**kwargs)
       self._my_arg = my_arg
@@ -163,8 +153,8 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     def score_one(self):
       ...
 
-    def __eq__(self,
-               value: 'TestEnsembleAnomalyDetector.DummyWeakLearner') -> bool:
+    def __eq__(
+        self, value: 'TestEnsembleAnomalyDetector.DummyWeakLearner') -> bool:
       return self._my_arg == value._my_arg
 
   def test_model_id_on_known_detector(self):

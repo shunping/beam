@@ -27,19 +27,18 @@ from apache_beam.ml.anomaly.configurable import configurable
 
 
 class LabelAggregation(AggregationFn):
-
-  def __init__(self,
-               agg_func: Callable[[Iterable[int]], int],
-               include_history: bool = False):
+  def __init__(
+      self,
+      agg_func: Callable[[Iterable[int]], int],
+      include_history: bool = False):
     self._agg = agg_func
     self._include_history = include_history
     self._model_override = None
 
-  def apply(self,
-            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+  def apply(
+      self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     labels = [
-        prediction.label
-        for prediction in predictions
+        prediction.label for prediction in predictions
         if prediction.label is not None
     ]
 
@@ -55,21 +54,19 @@ class LabelAggregation(AggregationFn):
 
 
 class ScoreAggregation(AggregationFn):
-
-  def __init__(self,
-               agg_func: Callable[[Iterable[float]], float],
-               include_history: bool = False):
+  def __init__(
+      self,
+      agg_func: Callable[[Iterable[float]], float],
+      include_history: bool = False):
     self._agg = agg_func
     self._include_history = include_history
     self._model_override = None
 
-  def apply(self,
-            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+  def apply(
+      self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     scores = [
-        prediction.score
-        for prediction in predictions
-        if prediction.score is not None and
-        not math.isnan(prediction.score)
+        prediction.score for prediction in predictions
+        if prediction.score is not None and not math.isnan(prediction.score)
     ]
 
     if len(scores) == 0:
@@ -85,7 +82,6 @@ class ScoreAggregation(AggregationFn):
 
 @configurable
 class MajorityVote(LabelAggregation):
-
   def __init__(self, normal_label=0, outlier_label=1, tie_breaker=0, **kwargs):
     self._tie_breaker = tie_breaker
     self._normal_label = normal_label
@@ -107,7 +103,6 @@ class MajorityVote(LabelAggregation):
 # And scheme
 @configurable
 class AllVote(LabelAggregation):
-
   def __init__(self, normal_label=0, outlier_label=1, **kwargs):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -123,7 +118,6 @@ class AllVote(LabelAggregation):
 # Or scheme
 @configurable
 class AnyVote(LabelAggregation):
-
   def __init__(self, normal_label=0, outlier_label=1, **kwargs):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -138,13 +132,11 @@ class AnyVote(LabelAggregation):
 
 @configurable
 class AverageScore(ScoreAggregation):
-
   def __init__(self, **kwargs):
     super().__init__(agg_func=statistics.mean, **kwargs)
 
 
 @configurable
 class MaxScore(ScoreAggregation):
-
   def __init__(self, **kwargs):
     super().__init__(agg_func=max, **kwargs)

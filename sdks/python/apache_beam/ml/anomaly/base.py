@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 """Base classes for anomaly detection"""
 from __future__ import annotations
 
@@ -24,6 +25,7 @@ from typing import List
 from typing import Optional
 
 import apache_beam as beam
+
 
 @dataclass(frozen=True)
 class AnomalyPrediction():
@@ -42,7 +44,6 @@ class AnomalyResult():
 
 
 class ThresholdFn(abc.ABC):
-
   def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -63,22 +64,21 @@ class ThresholdFn(abc.ABC):
 
 
 class AggregationFn(abc.ABC):
-
   @abc.abstractmethod
-  def apply(self,
-            predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
+  def apply(
+      self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     raise NotImplementedError
 
 
 class AnomalyDetector(abc.ABC):
-
-  def __init__(self,
-               model_id: Optional[str] = None,
-               features: Optional[Iterable[str]] = None,
-               target: Optional[str] = None,
-               threshold_criterion: Optional[ThresholdFn] = None,
-               initialize_model=False,
-               **kwargs):
+  def __init__(
+      self,
+      model_id: Optional[str] = None,
+      features: Optional[Iterable[str]] = None,
+      target: Optional[str] = None,
+      threshold_criterion: Optional[ThresholdFn] = None,
+      initialize_model=False,
+      **kwargs):
     self._model_id = model_id if model_id is not None else getattr(
         self, '_key', None)
     self._features = features
@@ -96,22 +96,22 @@ class AnomalyDetector(abc.ABC):
 
 
 class EnsembleAnomalyDetector(AnomalyDetector):
+  def __init__(
+      self,
+      n: int = 10,
+      aggregation_strategy: Optional[AggregationFn] = None,
+      learners: Optional[List[AnomalyDetector]] = None,
+      **kwargs):
+    if "model_id" not in kwargs:
+      kwargs["model_id"] = getattr(self, '_key', 'custom')
 
-  def __init__(self,
-               n: int = 10,
-               aggregation_strategy: Optional[AggregationFn] = None,
-               learners: Optional[List[AnomalyDetector]] = None,
-               **kwargs):
+    super().__init__(**kwargs)
+
     self._n = n
     self._aggregation_strategy = aggregation_strategy
     self._learners = learners
     if self._learners:
       self._n = len(self._learners)
-
-    if "model_id" not in kwargs:
-      kwargs["model_id"] = getattr(self, '_key', 'custom')
-
-    super().__init__(**kwargs)
 
   def learn_one(self, x: beam.Row) -> None:
     raise NotImplementedError

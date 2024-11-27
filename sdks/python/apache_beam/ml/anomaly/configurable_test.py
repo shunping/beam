@@ -29,9 +29,7 @@ from apache_beam.ml.anomaly.configurable import _register_configurable
 
 
 class TestConfigurable(unittest.TestCase):
-
   def test_register_configurable(self):
-
     class MyClass():
       pass
 
@@ -44,8 +42,8 @@ class TestConfigurable(unittest.TestCase):
 
     self.assertIn("MyKey", KNOWN_CONFIGURABLE)
     self.assertEqual(KNOWN_CONFIGURABLE["MyKey"], MyClass)
-    self.assertFalse(isinstance(MyClass(),
-                                Configurable))  # not yet a configurable
+    self.assertFalse(
+        isinstance(MyClass(), Configurable))  # not yet a configurable
     self.assertTrue(hasattr(MyClass(), '_key'))
     self.assertFalse(hasattr(MyClass(), '_init_params'))
 
@@ -78,10 +76,8 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(KNOWN_CONFIGURABLE["MyThirdKey"], MyThirdClass)
 
   def test_init_params_in_configurable(self):
-
     @configurable
     class MyClassWithInitParams():
-
       def __init__(self, arg_1, arg_2=2, arg_3="3", **kwargs):
         pass
 
@@ -97,7 +93,6 @@ class TestConfigurable(unittest.TestCase):
     # inheritance of configurable
     @configurable
     class MyDerivedClassWithInitParams(MyClassWithInitParams):
-
       def __init__(self, new_arg_1, new_arg_2=200, new_arg_3="300", **kwargs):
         super().__init__(**kwargs)
 
@@ -116,7 +111,6 @@ class TestConfigurable(unittest.TestCase):
     # composite of configurable
     @configurable
     class MyCompositeClassWithInitParams():
-
       def __init__(self, my_class: Optional[MyClassWithInitParams] = None):
         pass
 
@@ -126,7 +120,6 @@ class TestConfigurable(unittest.TestCase):
         {'my_class': a})
 
   def test_from_and_to_configurable(self):
-
     @configurable
     @dataclasses.dataclass
     class Product():
@@ -135,7 +128,6 @@ class TestConfigurable(unittest.TestCase):
 
     @configurable(key="shopping_entry")
     class Entry():
-
       def __init__(self, product: Product, quantity: int = 1):
         self._product = product
         self._quantity = quantity
@@ -154,8 +146,7 @@ class TestConfigurable(unittest.TestCase):
 
     expected_orange_config = Config(
         "Product", args={
-            'name': 'orange',
-            'price': 1.0
+            'name': 'orange', 'price': 1.0
         })
     self.assertEqual(Config.from_configurable(orange), expected_orange_config)
     self.assertEqual(Config.to_configurable(expected_orange_config), orange)
@@ -173,15 +164,13 @@ class TestConfigurable(unittest.TestCase):
     banana = Product("banana", 0.5)
     expected_banana_config = Config(
         "Product", args={
-            'name': 'banana',
-            'price': 0.5
+            'name': 'banana', 'price': 0.5
         })
     entry_2 = Entry(product=banana, quantity=5)
     expected_entry_config_2 = Config(
         "shopping_entry",
         args={
-            'product': expected_banana_config,
-            'quantity': 5
+            'product': expected_banana_config, 'quantity': 5
         })
 
     shopping_cart = ShoppingCart(user_id="test", entries=[entry_1, entry_2])

@@ -21,6 +21,7 @@ from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly.univariate import EPSILON
 
+
 @configurable(key="mad")
 class MedianAbsoluteDeviation(AnomalyDetector):
   def __init__(self, window_size=10, scale_factor=0.67449, **kwargs):
@@ -58,4 +59,3 @@ class MedianAbsoluteDeviation(AnomalyDetector):
     if mad < EPSILON:
       return float('NaN')
     return abs((v - median) / mad * self._scale_factor)
-
