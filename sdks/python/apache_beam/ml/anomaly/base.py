@@ -18,126 +18,12 @@
 from __future__ import annotations
 
 import abc
-import dataclasses
 from dataclasses import dataclass
-import inspect
-from typing import Any
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Protocol
-from typing import TypeVar
-from typing import runtime_checkable
 
 import apache_beam as beam
-
-KNOWN_CONFIGURABLE = {}
-
-
-@runtime_checkable
-class Configurable(Protocol):
-  _key: str
-  _init_params: dict[str, Any]
-
-
-ConfigT = TypeVar('ConfigT', bound=Configurable)
-
-
-def _register_configurable(cls, key=None, error_if_exists=True) -> None:
-  if key is None:
-    key = cls.__name__
-
-  if key in KNOWN_CONFIGURABLE and error_if_exists:
-    raise ValueError(f"{key} is already registered for configurable")
-
-  KNOWN_CONFIGURABLE[key] = cls
-
-  cls._key = key
-
-
-def configurable(my_cls=None, /, *, key=None):
-
-  def wrapper(cls):
-    original_init = cls.__init__
-
-    def new_init(self, *args, **kwargs):
-      if not hasattr(self, "_init_params"):
-        params = dict(
-            zip(
-                inspect.signature(original_init).parameters.keys(),
-                (None,) + args))
-        del params['self']
-        params.update(**kwargs)
-        self._init_params = params
-      original_init(self, *args, **kwargs)
-
-    cls.__init__ = new_init
-
-    _register_configurable(cls, key)
-
-    return cls
-
-  if my_cls is None:
-    return wrapper
-
-  return wrapper(my_cls)
-
-
-@dataclasses.dataclass(frozen=True)
-class Config():
-  type: str
-  args: dict[str, Any] = dataclasses.field(default_factory=dict)
-
-  @staticmethod
-  def _from_configurable_helper(v):
-    if isinstance(v, Configurable):
-      return Config.from_configurable(v)
-
-    if isinstance(v, List):
-      return [Config._from_configurable_helper(e) for e in v]
-
-    return v
-
-  @classmethod
-  def from_configurable(cls, configurable):
-    if getattr(type(configurable), '_key', None) is None:
-      raise ValueError(
-          f"'{type(configurable).__name__}' not registered as Configurable. "
-          f"Call register_configurable({type(configurable).__name__})")
-
-    if not hasattr(configurable, '_init_params'):
-      raise ValueError(
-          f"{type(configurable).__name__}' not decorated with @configurable.")
-
-    args = {
-        k: Config._from_configurable_helper(v)
-        for k, v in configurable._init_params.items()
-    }
-
-    return Config(type=configurable.__class__._key, args=args)
-
-  @staticmethod
-  def _to_configurable_helper(v):
-    if isinstance(v, Config):
-      return Config.to_configurable(v)
-
-    if isinstance(v, List):
-      return [Config._to_configurable_helper(e) for e in v]
-
-    return v
-
-  def to_configurable(self) -> ConfigT:  # type: ignore
-    if self.type is None:
-      raise ValueError(f"Config type not found in {self}")
-
-    subclass = KNOWN_CONFIGURABLE.get(self.type, None)
-    if subclass is None:
-      raise ValueError(f"Unknown config type '{self.type}' in {self}")
-
-    args = {k: Config._to_configurable_helper(v) for k, v in self.args.items()}
-
-    return subclass(**args)
-
 
 @dataclass(frozen=True)
 class AnomalyPrediction():
@@ -232,31 +118,3 @@ class EnsembleAnomalyDetector(AnomalyDetector):
 
   def score_one(self, x: beam.Row) -> float:
     raise NotImplementedError
-
-
-# EnsembleAnomalyDetector.register("custom", EnsembleAnomalyDetector)
-
-#print(isinstance(a, Configurable))
-
-# @configurable
-# class Dummy(AnomalyDetector):
-
-#   def __init__(self, my_arg=None, **kwargs):
-#     self._my_arg = my_arg
-#     super().__init__(**kwargs)
-
-#   def learn_one(self):
-#     ...
-
-#   def score_one(self):
-#     ...
-
-# register_configurable(Dummy)
-
-# a = Dummy(my_arg=1234, features=["x1", "x2"])
-# conf = Config.from_configurable(a)
-
-# print(conf)
-# b = conf.to_configurable()
-# print(b)
-# print(b._my_arg)

@@ -20,7 +20,7 @@ import numpy as np
 import apache_beam as beam
 from apache_beam.ml.anomaly.base import AnomalyDetector
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
-from apache_beam.ml.anomaly.base import configurable
+from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly import univariate
 
 

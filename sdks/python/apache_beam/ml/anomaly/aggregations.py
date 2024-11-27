@@ -23,7 +23,7 @@ from typing import Iterable
 
 from apache_beam.ml.anomaly.base import AnomalyPrediction
 from apache_beam.ml.anomaly.base import AggregationFn
-from apache_beam.ml.anomaly.base import configurable
+from apache_beam.ml.anomaly.configurable import configurable
 
 
 class LabelAggregation(AggregationFn):
