@@ -16,7 +16,6 @@
 #
 from __future__ import annotations
 
-import abc
 import dataclasses
 import inspect
 from typing import Any
@@ -32,7 +31,7 @@ class Config():
   type: str
   args: dict[str, Any] = dataclasses.field(default_factory=dict)
 
-class Configurable(abc.ABC):
+class Configurable():
   _key: str
   _init_params: dict[str, Any]
 

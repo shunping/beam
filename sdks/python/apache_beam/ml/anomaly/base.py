@@ -43,7 +43,7 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
-class ThresholdFn(Configurable):
+class ThresholdFn(abc.ABC, Configurable):
   def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -63,14 +63,14 @@ class ThresholdFn(Configurable):
     raise NotImplementedError
 
 
-class AggregationFn(Configurable):
+class AggregationFn(abc.ABC, Configurable):
   @abc.abstractmethod
   def apply(
       self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     raise NotImplementedError
 
 
-class AnomalyDetector(Configurable):
+class AnomalyDetector(abc.ABC, Configurable):
   def __init__(
       self,
       model_id: Optional[str] = None,
