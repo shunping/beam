@@ -32,10 +32,6 @@ class MedianAbsoluteDeviation(AnomalyDetector):
     self._median_tracker = None
     self._mad_tracker = None
 
-    if self._init_model:
-      self.initialize()
-
-  def initialize(self):
     self._median_tracker = univariate.SimpleMedianTracker(self._window_size)
     self._mad_tracker = univariate.SimpleMADTracker(self._window_size)
 

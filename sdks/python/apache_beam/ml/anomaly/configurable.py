@@ -83,7 +83,7 @@ class Configurable():
     return Config(type=self.__class__._key, args=args)
 
 
-def configurable(my_cls=None, /, *, key=None, lazy_init=True, error_if_exists=True):
+def configurable(my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=True):
   def _register(cls) -> None:
     nonlocal key
     if key is None:

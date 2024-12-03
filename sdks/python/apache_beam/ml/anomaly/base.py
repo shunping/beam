@@ -77,14 +77,12 @@ class AnomalyDetector(abc.ABC, Configurable):
       features: Optional[Iterable[str]] = None,
       target: Optional[str] = None,
       threshold_criterion: Optional[ThresholdFn] = None,
-      initialize_model=False,
       **kwargs):
     self._model_id = model_id if model_id is not None else getattr(
         self, '_key', None)
     self._features = features
     self._target = target
     self._threshold_criterion = threshold_criterion
-    self._init_model = initialize_model
 
   @abc.abstractmethod
   def learn_one(self, x: beam.Row) -> None:

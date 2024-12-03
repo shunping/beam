@@ -34,10 +34,6 @@ class StandardAbsoluteDeviation(AnomalyDetector):
     self._sub_stat_tracker = None
     self._stdev_tracker = None
 
-    if self._init_model:
-      self.initialize()
-
-  def initialize(self):
     if self._sub_stat == 'mean':
       self._sub_stat_tracker = univariate.SimpleMeanTracker(self._window_size)
     elif self._sub_stat == 'median':

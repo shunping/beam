@@ -35,6 +35,7 @@ from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.configurable import Config
 from apache_beam.ml.anomaly.configurable import Configurable
+from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLE
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 from apache_beam.utils import timestamp
@@ -45,12 +46,10 @@ class _ScoreAndLearn(beam.DoFn):
 
   def __init__(self, detector_config: Config):
     self._detector_config = detector_config
-    self._detector_config.args["initialize_model"] = True
     self._detector_config.args["_run_init"] = True
-    # object.__delattr__(self._detector, "algorithm_args")
-    # self._canonical_alg = self._detector.type.lower()
-    # if not self._canonical_alg in KNOWN_ALGORITHMS:
-    #   raise NotImplementedError(f"algorithm '{detector.type}' not found")
+
+    if detector_config.type not in KNOWN_CONFIGURABLE:
+      raise NotImplementedError(f"algorithm '{detector_config.type}' not found")
 
   def score_and_learn(self, data):
     assert self._underlying
