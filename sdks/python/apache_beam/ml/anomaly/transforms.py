@@ -46,6 +46,7 @@ class _ScoreAndLearn(beam.DoFn):
   def __init__(self, detector_config: Config):
     self._detector_config = detector_config
     self._detector_config.args["initialize_model"] = True
+    self._detector_config.args["_run_init"] = True
     # object.__delattr__(self._detector, "algorithm_args")
     # self._canonical_alg = self._detector.type.lower()
     # if not self._canonical_alg in KNOWN_ALGORITHMS:
@@ -170,9 +171,13 @@ class _RunEnsembleDetector(
     merged = (model_results | beam.Flatten())
 
     ret: Any = merged
-    # aggregation_strategy = AggregationFn.from_config(
-    #     self._ensemble_detector._aggregation_strategy)
-    aggregation_strategy = self._ensemble_detector._aggregation_strategy
+    if self._ensemble_detector._aggregation_strategy is not None:
+      aggregation_strategy_config = self._ensemble_detector._aggregation_strategy.to_config()
+      aggregation_strategy_config.args["_run_init"] = True
+      aggregation_strategy: AggregationFn = cast(
+          AggregationFn, Configurable.from_config(aggregation_strategy_config))
+    else:
+      aggregation_strategy = None
 
     if aggregation_strategy is not None:
       # if no model_override is set in the aggregation function, use

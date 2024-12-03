@@ -55,8 +55,8 @@ class TestFixedThreshold(unittest.TestCase):
           | beam.Create(input)
           | beam.ParDo(
               thresholds.StatelessThresholdDoFn(
-                  thresholds.FixedThreshold(2, normal_label=0,
-                                            outlier_label=1).to_config())))
+                  thresholds.FixedThreshold(
+                      2, normal_label=0, outlier_label=1).to_config())))
 
       assert_that(result, equal_to(expected))
 
@@ -107,7 +107,8 @@ class TestQuantileThreshold(unittest.TestCase):
           | beam.ParDo(
               thresholds.StatefulThresholdDoFn(
                   thresholds.QuantileThreshold(
-                      quantile=0.5, normal_label=0,
+                      quantile=0.5,
+                      normal_label=0,
                       outlier_label=1).to_config())))
 
       assert_that(result, equal_to(expected))

@@ -83,7 +83,7 @@ class Configurable():
     return Config(type=self.__class__._key, args=args)
 
 
-def configurable(my_cls=None, /, *, key=None, error_if_exists=True):
+def configurable(my_cls=None, /, *, key=None, lazy_init=True, error_if_exists=True):
   def _register(cls) -> None:
     nonlocal key
     if key is None:
@@ -110,6 +110,16 @@ def configurable(my_cls=None, /, *, key=None, error_if_exists=True):
         del params['self']
         params.update(**kwargs)
         self._init_params = params
+
+      if "_run_init" in kwargs:
+        run_init = True
+        del kwargs['_run_init']
+      else:
+        run_init = False
+
+      if lazy_init and not run_init:
+        return
+
       original_init(self, *args, **kwargs)
 
     cls.__init__ = new_init

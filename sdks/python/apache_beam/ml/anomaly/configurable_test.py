@@ -115,13 +115,13 @@ class TestConfigurable(unittest.TestCase):
         {'my_class': a})
 
   def test_from_and_to_configurable(self):
-    @configurable
+    @configurable(lazy_init=False)
     @dataclasses.dataclass
     class Product(Configurable):
       name: str
       price: float
 
-    @configurable(key="shopping_entry")
+    @configurable(key="shopping_entry", lazy_init=False)
     class Entry(Configurable):
       def __init__(self, product: Product, quantity: int = 1):
         self._product = product
@@ -131,7 +131,7 @@ class TestConfigurable(unittest.TestCase):
         return self._product == value._product and \
           self._quantity == value._quantity
 
-    @configurable(key="shopping_cart")
+    @configurable(key="shopping_cart", lazy_init=False)
     @dataclasses.dataclass
     class ShoppingCart(Configurable):
       user_id: str

@@ -24,7 +24,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-@configurable(key="sad")
+@configurable(key="sad", lazy_init=False)
 class StandardAbsoluteDeviation(AnomalyDetector):
   def __init__(self, sub_stat="mean", window_size=10, **kwargs):
     super().__init__(**kwargs)

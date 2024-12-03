@@ -24,7 +24,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly import univariate
 
 
-@configurable(key="loda-weak-learner")
+@configurable(key="loda-weak-learner", lazy_init=False)
 class LodaWeakLearner(AnomalyDetector):
   def __init__(
       self,
@@ -78,7 +78,7 @@ class LodaWeakLearner(AnomalyDetector):
     return float(y_pred)
 
 
-@configurable(key="loda")
+@configurable(key="loda", lazy_init=False)
 class Loda(EnsembleAnomalyDetector):
   def __init__(self, n: int = 10, aggregation_strategy=None, **kwargs):
     learners = []

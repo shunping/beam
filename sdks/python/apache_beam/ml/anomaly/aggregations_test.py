@@ -26,7 +26,7 @@ class MajorityVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    vote = aggregations.MajorityVote().apply
+    vote = aggregations.MajorityVote(_run_init=True).apply
 
     self.assertEqual(vote([]), AnomalyPrediction())
 
@@ -44,7 +44,7 @@ class MajorityVoteTest(unittest.TestCase):
   def test_tie_breaker(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    vote = aggregations.MajorityVote(tie_breaker=1).apply
+    vote = aggregations.MajorityVote(tie_breaker=1, _run_init=True).apply
 
     self.assertEqual(vote([outlier, normal]), outlier)
 
@@ -53,7 +53,7 @@ class AllVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    vote = aggregations.AllVote().apply
+    vote = aggregations.AllVote(_run_init=True).apply
 
     self.assertEqual(vote([]), AnomalyPrediction())
 
@@ -72,7 +72,7 @@ class AnyVoteTest(unittest.TestCase):
   def test_default(self):
     normal = AnomalyPrediction(label=0)
     outlier = AnomalyPrediction(label=1)
-    vote = aggregations.AnyVote().apply
+    vote = aggregations.AnyVote(_run_init=True).apply
 
     self.assertEqual(vote([]), AnomalyPrediction())
 
@@ -89,7 +89,7 @@ class AnyVoteTest(unittest.TestCase):
 
 class AverageScoreTest(unittest.TestCase):
   def test_default(self):
-    avg = aggregations.AverageScore().apply
+    avg = aggregations.AverageScore(_run_init=True).apply
 
     self.assertEqual(avg([]), AnomalyPrediction())
 
@@ -103,7 +103,7 @@ class AverageScoreTest(unittest.TestCase):
 
 class MaxScoreTest(unittest.TestCase):
   def test_default(self):
-    avg = aggregations.MaxScore().apply
+    avg = aggregations.MaxScore(_run_init=True).apply
 
     self.assertEqual(avg([]), AnomalyPrediction())
 

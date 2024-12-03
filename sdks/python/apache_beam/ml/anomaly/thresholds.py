@@ -56,6 +56,7 @@ class BaseThresholdDoFn(beam.DoFn):
 class StatelessThresholdDoFn(BaseThresholdDoFn):
 
   def __init__(self, threshold_fn_config: Config):
+    threshold_fn_config.args["_run_init"] = True
     self._threshold_fn = cast(ThresholdFn,
                               Configurable.from_config(threshold_fn_config))
     assert not self._threshold_fn.is_stateful, \
@@ -71,6 +72,7 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
   def __init__(self, threshold_fn_config: Config):
+    threshold_fn_config.args["_run_init"] = True
     threshold_fn: ThresholdFn = cast(
         ThresholdFn, Configurable.from_config(threshold_fn_config))
     assert threshold_fn.is_stateful, \
