@@ -97,20 +97,16 @@ class AnomalyDetector(abc.ABC, Configurable):
 class EnsembleAnomalyDetector(AnomalyDetector):
   def __init__(
       self,
-      n: int = 10,
-      aggregation_strategy: Optional[AggregationFn] = None,
       learners: Optional[List[AnomalyDetector]] = None,
+      aggregation_strategy: Optional[AggregationFn] = None,
       **kwargs):
     if "model_id" not in kwargs:
       kwargs["model_id"] = getattr(self, '_key', 'custom')
 
     super().__init__(**kwargs)
 
-    self._n = n
     self._aggregation_strategy = aggregation_strategy
     self._learners = learners
-    if self._learners:
-      self._n = len(self._learners)
 
   def learn_one(self, x: beam.Row) -> None:
     raise NotImplementedError
