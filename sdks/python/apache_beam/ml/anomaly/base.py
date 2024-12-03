@@ -27,6 +27,7 @@ from typing import Optional
 import apache_beam as beam
 from apache_beam.ml.anomaly.configurable import Configurable
 
+
 @dataclass(frozen=True)
 class AnomalyPrediction():
   model_id: Optional[str] = None

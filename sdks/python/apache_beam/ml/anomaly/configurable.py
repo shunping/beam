@@ -26,10 +26,12 @@ KNOWN_CONFIGURABLES = {}
 
 ConfigT = TypeVar('ConfigT', bound='Configurable')
 
+
 @dataclasses.dataclass(frozen=True)
 class Config():
   type: str
   args: dict[str, Any] = dataclasses.field(default_factory=dict)
+
 
 class Configurable():
   _key: str
@@ -54,7 +56,10 @@ class Configurable():
     if subclass is None:
       raise ValueError(f"Unknown config type '{config.type}' in {config}")
 
-    args = {k: Configurable._from_config_helper(v) for k, v in config.args.items()}
+    args = {
+        k: Configurable._from_config_helper(v)
+        for k, v in config.args.items()
+    }
 
     return subclass(**args)
 
@@ -71,19 +76,16 @@ class Configurable():
   def to_config(self) -> Config:
     if getattr(type(self), '_key', None) is None:
       raise ValueError(
-            f"'{type(self).__name__}' not registered as Configurable. "
-            f"Decorate ({type(configurable).__name__}) with @configurable")
+          f"'{type(self).__name__}' not registered as Configurable. "
+          f"Decorate ({type(configurable).__name__}) with @configurable")
 
-    args = {
-        k: self._to_config_helper(v)
-        for k,
-        v in self._init_params.items()
-    }
+    args = {k: self._to_config_helper(v) for k, v in self._init_params.items()}
 
     return Config(type=self.__class__._key, args=args)
 
 
-def configurable(my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=True):
+def configurable(
+    my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=True):
   def _register(cls) -> None:
     nonlocal key
     if key is None:
@@ -131,4 +133,4 @@ def configurable(my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=Tr
   if my_cls is None:
     return _register_and_track_init_params
 
-  return  _register_and_track_init_params(my_cls)
+  return _register_and_track_init_params(my_cls)

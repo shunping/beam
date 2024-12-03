@@ -67,7 +67,8 @@ class TestAnomalyDetector(unittest.TestCase):
     a = self.Dummy(
         my_arg="abc",
         target="ABC",
-        threshold_criterion=(t1 := self.DummyThreshold(2)), _run_init=True)
+        threshold_criterion=(t1 := self.DummyThreshold(2)),
+        _run_init=True)
 
     self.assertEqual(a._model_id, "Dummy")
     self.assertEqual(a._target, "ABC")
@@ -85,7 +86,8 @@ class TestAnomalyDetector(unittest.TestCase):
         my_arg="efg",
         model_id="my_dummy",
         target="EFG",
-        threshold_criterion=(t2 := self.DummyThreshold(2)), _run_init=True)
+        threshold_criterion=(t2 := self.DummyThreshold(2)),
+        _run_init=True)
     self.assertEqual(b._model_id, "my_dummy")
     self.assertEqual(b._target, "EFG")
     self.assertEqual(b._my_arg, "efg")
@@ -104,7 +106,8 @@ class TestAnomalyDetector(unittest.TestCase):
         my_arg="hij",
         model_id="my_dummy",
         target="HIJ",
-        threshold_criterion=self.DummyThreshold(4), _run_init=True)
+        threshold_criterion=self.DummyThreshold(4),
+        _run_init=True)
 
     config = obj.to_config()
     expected_config = Config(
@@ -180,7 +183,8 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     ensemble = self.DummyEnsemble(
         my_ensemble_arg=123,
         learners=[d1, d2],
-        aggregation_strategy=self.DummyAggregation(), _run_init=True)
+        aggregation_strategy=self.DummyAggregation(),
+        _run_init=True)
 
     expected_config = Config(
         type="DummyEnsemble",
@@ -190,7 +194,10 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
                 Config(type="DummyWeakLearner", args={"my_arg": 1}),
                 Config(type="DummyWeakLearner", args={"my_arg": 2})
             ],
-            "aggregation_strategy": Config(type="DummyAggregation", args={},),
+            "aggregation_strategy": Config(
+                type="DummyAggregation",
+                args={},
+            ),
             "_run_init": True,
         })
     config = ensemble.to_config()

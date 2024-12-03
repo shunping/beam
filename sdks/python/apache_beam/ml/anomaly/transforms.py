@@ -61,17 +61,18 @@ class _ScoreAndLearn(beam.DoFn):
     self._underlying.learn_one(x)
     return y_pred
 
-  def process(self,
-              element: Tuple[Any, Tuple[Any, beam.Row]],
-              model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
+  def process(
+      self,
+      element: Tuple[Any, Tuple[Any, beam.Row]],
+      model_state=beam.DoFn.StateParam(MODEL_STATE_INDEX),
+      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
     model_state = cast(ReadModifyWriteRuntimeState, model_state)
     k1, (k2, data) = element
     self._underlying: AnomalyDetector = model_state.read()
     if self._underlying is None:
-      self._underlying = cast(AnomalyDetector,
-                              Configurable.from_config(self._detector_config))
+      self._underlying = cast(
+          AnomalyDetector, Configurable.from_config(self._detector_config))
 
     yield k1, (k2,
                AnomalyResult(
@@ -86,7 +87,6 @@ class _ScoreAndLearn(beam.DoFn):
 class _RunThresholdCriterion(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
-
   def __init__(self, model_id, threshold_criterion):
     self._model_id = model_id
     self._threshold_criterion = threshold_criterion
@@ -117,7 +117,6 @@ class _RunThresholdCriterion(
 class _RunOneDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
-
   def __init__(self, detector):
     # self._detector = AnomalyDetector.from_config(detector)
     self._detector = detector
@@ -147,7 +146,6 @@ class _RunOneDetector(
 class _RunEnsembleDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
-
   def __init__(self, ensemble_detector: EnsembleAnomalyDetector):
     self._ensemble_detector = ensemble_detector
 
@@ -177,9 +175,10 @@ class _RunEnsembleDetector(
 
     ret: Any = merged
     if self._ensemble_detector._aggregation_strategy is not None:
-      aggregation_strategy_config = self._ensemble_detector._aggregation_strategy.to_config()
+      aggregation_strategy_config = self._ensemble_detector._aggregation_strategy.to_config(
+      )
       aggregation_strategy_config.args["_run_init"] = True
-      aggregation_strategy: AggregationFn = cast(
+      aggregation_strategy: AggregationFn | None = cast(
           AggregationFn, Configurable.from_config(aggregation_strategy_config))
     else:
       aggregation_strategy = None
@@ -189,19 +188,27 @@ class _RunEnsembleDetector(
       # model id locally in the instance
 
       if getattr(aggregation_strategy, "_model_override") is None:
-        setattr(aggregation_strategy, "_model_override",
-                self._ensemble_detector._model_id)
+        setattr(
+            aggregation_strategy,
+            "_model_override",
+            self._ensemble_detector._model_id)
       ret = (
           ret
           | beam.MapTuple(lambda k, v: ((k, v[0]), v[1]))
           | beam.GroupByKey()
-          | f"Run Aggregation Strategy ({model_uuid})" >>
-          beam.MapTuple(lambda k, v, agg=aggregation_strategy: (k[0], (
-              k[1],
-              AnomalyResult(
-                  example=v[0].example,
-                  prediction=agg.apply([result.prediction for result in v])
-              )))).with_output_types(Tuple[Any, Tuple[Any, AnomalyResult]]))
+          | f"Run Aggregation Strategy ({model_uuid})" >> beam.MapTuple(
+              lambda k,
+              v,
+              agg=aggregation_strategy: (
+                  k[0],
+                  (
+                      k[1],
+                      AnomalyResult(
+                          example=v[0].example,
+                          prediction=agg.apply(
+                              [result.prediction
+                               for result in v]))))).with_output_types(
+                                   Tuple[Any, Tuple[Any, AnomalyResult]]))
 
     ret = (
         ret
@@ -215,7 +222,6 @@ class _RunEnsembleDetector(
 class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
                                        beam.PCollection[Tuple[Any,
                                                               AnomalyResult]]]):
-
   def __init__(
       self,
       detectors: List[AnomalyDetector],

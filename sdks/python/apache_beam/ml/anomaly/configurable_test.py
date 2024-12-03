@@ -77,13 +77,7 @@ class TestConfigurable(unittest.TestCase):
         pass
 
     a = MyClassWithInitParams(10, arg_3="30", arg_4=40)
-    self.assertEqual(
-        a._init_params,
-        {
-            'arg_1': 10,
-            'arg_3': '30',
-            'arg_4': 40
-        })
+    self.assertEqual(a._init_params, {'arg_1': 10, 'arg_3': '30', 'arg_4': 40})
 
     # inheritance of configurable
     @configurable
@@ -110,9 +104,7 @@ class TestConfigurable(unittest.TestCase):
         pass
 
     c = MyCompositeClassWithInitParams(a)
-    self.assertEqual(
-        c._init_params,
-        {'my_class': a})
+    self.assertEqual(c._init_params, {'my_class': a})
 
   def test_from_and_to_configurable(self):
     @configurable(lazy_init=False)
@@ -176,8 +168,7 @@ class TestConfigurable(unittest.TestCase):
             "entries": [expected_entry_config_1, expected_entry_config_2]
         })
 
-    self.assertEqual(
-        shopping_cart.to_config(), expected_shopping_cart_config)
+    self.assertEqual(shopping_cart.to_config(), expected_shopping_cart_config)
     self.assertEqual(
         Configurable.from_config(expected_shopping_cart_config), shopping_cart)
 

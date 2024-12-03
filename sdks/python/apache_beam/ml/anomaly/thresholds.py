@@ -38,7 +38,6 @@ from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 
 
 class BaseThresholdDoFn(beam.DoFn):
-
   def __init__(self, threshold_fn_config: Config):
     self._threshold_fn_config = threshold_fn_config
     self._threshold_fn: ThresholdFn
@@ -54,11 +53,10 @@ class BaseThresholdDoFn(beam.DoFn):
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
-
   def __init__(self, threshold_fn_config: Config):
     threshold_fn_config.args["_run_init"] = True
-    self._threshold_fn = cast(ThresholdFn,
-                              Configurable.from_config(threshold_fn_config))
+    self._threshold_fn = cast(
+        ThresholdFn, Configurable.from_config(threshold_fn_config))
     assert not self._threshold_fn.is_stateful, \
       "This DoFn can only take stateless function as threshold_fn"
 
@@ -79,12 +77,12 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
       "This DoFn can only take stateful function as threshold_fn"
     self._threshold_fn_config = threshold_fn_config
 
-  def process(self,
-              element: Tuple[Any, Tuple[Any, AnomalyResult]],
-              threshold_state: Union[ReadModifyWriteRuntimeState,
-                                     Any] = beam.DoFn.StateParam(
-                                         THRESHOLD_STATE_INDEX),
-              **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
+  def process(
+      self,
+      element: Tuple[Any, Tuple[Any, AnomalyResult]],
+      threshold_state: Union[ReadModifyWriteRuntimeState,
+                             Any] = beam.DoFn.StateParam(THRESHOLD_STATE_INDEX),
+      **kwargs) -> Iterable[Tuple[Any, Tuple[Any, AnomalyResult]]]:
     k1, (k2, prediction) = element
 
     self._threshold_fn = threshold_state.read()
@@ -99,7 +97,6 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
 @configurable
 class FixedThreshold(ThresholdFn):
-
   def __init__(self, cutoff: float, **kwargs):
     super().__init__(**kwargs)
     self._cutoff = cutoff
@@ -121,7 +118,6 @@ class FixedThreshold(ThresholdFn):
 
 @configurable
 class QuantileThreshold(ThresholdFn):
-
   def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)
     self._quantile = quantile
