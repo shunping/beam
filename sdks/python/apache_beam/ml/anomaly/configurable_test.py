@@ -24,7 +24,7 @@ import unittest
 from apache_beam.ml.anomaly.configurable import Config
 from apache_beam.ml.anomaly.configurable import Configurable
 from apache_beam.ml.anomaly.configurable import configurable
-from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLE
+from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLES
 
 
 class TestConfigurable(unittest.TestCase):
@@ -35,19 +35,19 @@ class TestConfigurable(unittest.TestCase):
     # class is not decorated/registered
     self.assertRaises(ValueError, MyClass().to_config)
 
-    self.assertNotIn("MyKey", KNOWN_CONFIGURABLE)
+    self.assertNotIn("MyKey", KNOWN_CONFIGURABLES)
 
     MyClass = configurable(key="MyKey")(MyClass)
 
-    self.assertIn("MyKey", KNOWN_CONFIGURABLE)
-    self.assertEqual(KNOWN_CONFIGURABLE["MyKey"], MyClass)
+    self.assertIn("MyKey", KNOWN_CONFIGURABLES)
+    self.assertEqual(KNOWN_CONFIGURABLES["MyKey"], MyClass)
 
     # By default, an error is raised if the key is duplicated
     self.assertRaises(ValueError, configurable(key="MyKey"), MyClass)
 
     # But it is ok if a different key is used for the same class
     _ = configurable(key="MyOtherKey")(MyClass)
-    self.assertIn("MyOtherKey", KNOWN_CONFIGURABLE)
+    self.assertIn("MyOtherKey", KNOWN_CONFIGURABLES)
 
     # Or, use a parameter to suppress the error
     configurable(key="MyKey", error_if_exists=False)(MyClass)
@@ -58,8 +58,8 @@ class TestConfigurable(unittest.TestCase):
     class MySecondClass(Configurable):
       pass
 
-    self.assertIn("MySecondClass", KNOWN_CONFIGURABLE)
-    self.assertEqual(KNOWN_CONFIGURABLE["MySecondClass"], MySecondClass)
+    self.assertIn("MySecondClass", KNOWN_CONFIGURABLES)
+    self.assertEqual(KNOWN_CONFIGURABLES["MySecondClass"], MySecondClass)
     self.assertTrue(isinstance(MySecondClass(), Configurable))
 
     # use decorator with key parameter
@@ -67,8 +67,8 @@ class TestConfigurable(unittest.TestCase):
     class MyThirdClass(Configurable):
       pass
 
-    self.assertIn("MyThirdKey", KNOWN_CONFIGURABLE)
-    self.assertEqual(KNOWN_CONFIGURABLE["MyThirdKey"], MyThirdClass)
+    self.assertIn("MyThirdKey", KNOWN_CONFIGURABLES)
+    self.assertEqual(KNOWN_CONFIGURABLES["MyThirdKey"], MyThirdClass)
 
   def test_init_params_in_configurable(self):
     @configurable

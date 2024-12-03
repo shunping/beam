@@ -22,7 +22,7 @@ from typing import Any
 from typing import List
 from typing import TypeVar
 
-KNOWN_CONFIGURABLE = {}
+KNOWN_CONFIGURABLES = {}
 
 ConfigT = TypeVar('ConfigT', bound='Configurable')
 
@@ -50,7 +50,7 @@ class Configurable():
     if config.type is None:
       raise ValueError(f"Config type not found in {config}")
 
-    subclass = KNOWN_CONFIGURABLE.get(config.type, None)
+    subclass = KNOWN_CONFIGURABLES.get(config.type, None)
     if subclass is None:
       raise ValueError(f"Unknown config type '{config.type}' in {config}")
 
@@ -89,10 +89,10 @@ def configurable(my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=Tr
     if key is None:
       key = cls.__name__
 
-    if key in KNOWN_CONFIGURABLE and error_if_exists:
+    if key in KNOWN_CONFIGURABLES and error_if_exists:
       raise ValueError(f"{key} is already registered for configurable")
 
-    KNOWN_CONFIGURABLE[key] = cls
+    KNOWN_CONFIGURABLES[key] = cls
 
     cls._key = key
 
