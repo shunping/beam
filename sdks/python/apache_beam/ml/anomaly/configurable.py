@@ -118,6 +118,9 @@ def configurable(my_cls=None, /, *, key=None, lazy_init=True, error_if_exists=Tr
         run_init = False
 
       if lazy_init and not run_init:
+        if self._init_params is not None:
+          for k, v in self._init_params.items():
+            setattr(self, f"_{k}", v)
         return
 
       original_init(self, *args, **kwargs)

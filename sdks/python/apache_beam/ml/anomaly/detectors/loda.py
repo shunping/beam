@@ -24,7 +24,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly import univariate
 
 
-@configurable(key="loda-weak-learner", lazy_init=False)
+@configurable(key="loda-weak-learner")
 class LodaWeakLearner(AnomalyDetector):
   def __init__(
       self,

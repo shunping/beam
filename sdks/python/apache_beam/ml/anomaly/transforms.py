@@ -126,7 +126,13 @@ class _RunOneDetector(
   def expand(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
-    model_uuid = f"{self._detector._model_id}:{uuid.uuid4().hex[:6]}"
+    model_id = getattr(self._detector, "_model_id", None)
+    if model_id is None:
+      model_id = getattr(self._detector, "_key", "unknown_model")
+
+    threshold_criterion = getattr(self._detector, "_threshold_criterion", None)
+
+    model_uuid = f"{model_id}:{uuid.uuid4().hex[:6]}"
     result: Any = (
         input
         | beam.Reshuffle()
@@ -134,7 +140,7 @@ class _RunOneDetector(
             _ScoreAndLearn(self._detector.to_config())).with_output_types(
                 Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
-            self._detector._model_id, self._detector._threshold_criterion))
+            model_id, threshold_criterion))
 
     return result
 

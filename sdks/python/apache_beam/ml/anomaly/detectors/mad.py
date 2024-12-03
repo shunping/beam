@@ -22,7 +22,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 from apache_beam.ml.anomaly.univariate import EPSILON
 
 
-@configurable(key="mad", lazy_init=False)
+@configurable(key="mad")
 class MedianAbsoluteDeviation(AnomalyDetector):
   def __init__(self, window_size=10, scale_factor=0.67449, **kwargs):
     super().__init__(**kwargs)
