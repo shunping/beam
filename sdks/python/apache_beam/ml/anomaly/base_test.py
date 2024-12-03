@@ -30,7 +30,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 
 
 class TestAnomalyDetector(unittest.TestCase):
-  @configurable
+  @configurable(lazy_init=False)
   class DummyThreshold(ThresholdFn):
     def __init__(self, my_threshold_arg=None):
       ...
@@ -44,7 +44,7 @@ class TestAnomalyDetector(unittest.TestCase):
     def apply(self, x):
       ...
 
-  @configurable
+  @configurable(lazy_init=False)
   class Dummy(AnomalyDetector):
     def __init__(self, my_arg=None, **kwargs):
       self._my_arg = my_arg
@@ -67,8 +67,7 @@ class TestAnomalyDetector(unittest.TestCase):
     a = self.Dummy(
         my_arg="abc",
         target="ABC",
-        threshold_criterion=(t1 := self.DummyThreshold(2)),
-        _run_init=True)
+        threshold_criterion=(t1 := self.DummyThreshold(2)))
 
     self.assertEqual(a._model_id, "Dummy")
     self.assertEqual(a._target, "ABC")
@@ -79,15 +78,13 @@ class TestAnomalyDetector(unittest.TestCase):
             "my_arg": "abc",
             "target": "ABC",
             "threshold_criterion": t1,
-            "_run_init": True,
         })
 
     b = self.Dummy(
         my_arg="efg",
         model_id="my_dummy",
         target="EFG",
-        threshold_criterion=(t2 := self.DummyThreshold(2)),
-        _run_init=True)
+        threshold_criterion=(t2 := self.DummyThreshold(2)))
     self.assertEqual(b._model_id, "my_dummy")
     self.assertEqual(b._target, "EFG")
     self.assertEqual(b._my_arg, "efg")
@@ -98,7 +95,6 @@ class TestAnomalyDetector(unittest.TestCase):
             "my_arg": "efg",
             "target": "EFG",
             "threshold_criterion": t2,
-            "_run_init": True,
         })
 
   def test_from_and_to_configurable(self):
@@ -106,8 +102,7 @@ class TestAnomalyDetector(unittest.TestCase):
         my_arg="hij",
         model_id="my_dummy",
         target="HIJ",
-        threshold_criterion=self.DummyThreshold(4),
-        _run_init=True)
+        threshold_criterion=self.DummyThreshold(4))
 
     config = obj.to_config()
     expected_config = Config(
@@ -118,7 +113,6 @@ class TestAnomalyDetector(unittest.TestCase):
             "target": "HIJ",
             "threshold_criterion": Config(
                 type="DummyThreshold", args={"my_threshold_arg": 4}),
-            "_run_init": True,
         })
     self.assertEqual(config, expected_config)
 
@@ -127,12 +121,12 @@ class TestAnomalyDetector(unittest.TestCase):
 
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
-  @configurable
+  @configurable(lazy_init=False)
   class DummyAggregation(AggregationFn):
     def apply(self, x):
       ...
 
-  @configurable
+  @configurable(lazy_init=False)
   class DummyEnsemble(EnsembleAnomalyDetector):
     def __init__(self, my_ensemble_arg=None, **kwargs):
       super().__init__(**kwargs)
@@ -148,7 +142,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
         self, value: 'TestEnsembleAnomalyDetector.DummyEnsemble') -> bool:
       return self._my_ensemble_arg == value._my_ensemble_arg
 
-  @configurable
+  @configurable(lazy_init=False)
   class DummyWeakLearner(AnomalyDetector):
     def __init__(self, my_arg=None, **kwargs):
       super().__init__(**kwargs)
@@ -165,16 +159,16 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
       return self._my_arg == value._my_arg
 
   def test_model_id_on_known_detector(self):
-    a = self.DummyEnsemble(_run_init=True)
+    a = self.DummyEnsemble()
     self.assertEqual(a._model_id, "DummyEnsemble")
 
-    b = self.DummyEnsemble(model_id="my_dummy_ensemble", _run_init=True)
+    b = self.DummyEnsemble(model_id="my_dummy_ensemble")
     self.assertEqual(b._model_id, "my_dummy_ensemble")
 
-    c = EnsembleAnomalyDetector(_run_init=True)
+    c = EnsembleAnomalyDetector()
     self.assertEqual(c._model_id, "custom")
 
-    d = EnsembleAnomalyDetector(model_id="my_dummy_ensemble_2", _run_init=True)
+    d = EnsembleAnomalyDetector(model_id="my_dummy_ensemble_2")
     self.assertEqual(d._model_id, "my_dummy_ensemble_2")
 
   def test_from_and_to_configurable(self):
@@ -183,8 +177,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     ensemble = self.DummyEnsemble(
         my_ensemble_arg=123,
         learners=[d1, d2],
-        aggregation_strategy=self.DummyAggregation(),
-        _run_init=True)
+        aggregation_strategy=self.DummyAggregation())
 
     expected_config = Config(
         type="DummyEnsemble",
@@ -198,7 +191,6 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
                 type="DummyAggregation",
                 args={},
             ),
-            "_run_init": True,
         })
     config = ensemble.to_config()
     self.assertEqual(config, expected_config)
