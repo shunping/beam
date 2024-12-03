@@ -73,8 +73,7 @@ class TestAnomalyDetector(unittest.TestCase):
     self.assertEqual(a._target, "ABC")
     self.assertEqual(a._my_arg, "abc")
     self.assertEqual(
-        a._init_params,
-        {
+        a._init_params, {
             "my_arg": "abc",
             "target": "ABC",
             "threshold_criterion": t1,
