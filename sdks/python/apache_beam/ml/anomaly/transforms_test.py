@@ -246,8 +246,8 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_fn))
 
-    model_id_1 = "sad"
-    self.assertFalse(hasattr(detectors[0], "_model_id"))
+    model_id_1 = detectors[0]._model_id
+    self.assertEqual(model_id_1, "sad")
 
     model_id_2 = detectors[1]._model_id
     self.assertEqual(model_id_2, "sad_x2")

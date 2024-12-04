@@ -30,7 +30,7 @@ from apache_beam.ml.anomaly.configurable import configurable
 
 
 class TestAnomalyDetector(unittest.TestCase):
-  @configurable(lazy_init=False)
+  @configurable(on_demand_init=False)
   class DummyThreshold(ThresholdFn):
     def __init__(self, my_threshold_arg=None):
       ...
@@ -44,7 +44,7 @@ class TestAnomalyDetector(unittest.TestCase):
     def apply(self, x):
       ...
 
-  @configurable(lazy_init=False)
+  @configurable(on_demand_init=False)
   class Dummy(AnomalyDetector):
     def __init__(self, my_arg=None, **kwargs):
       self._my_arg = my_arg
@@ -120,12 +120,12 @@ class TestAnomalyDetector(unittest.TestCase):
 
 
 class TestEnsembleAnomalyDetector(unittest.TestCase):
-  @configurable(lazy_init=False)
+  @configurable(on_demand_init=False)
   class DummyAggregation(AggregationFn):
     def apply(self, x):
       ...
 
-  @configurable(lazy_init=False)
+  @configurable(on_demand_init=False)
   class DummyEnsemble(EnsembleAnomalyDetector):
     def __init__(self, my_ensemble_arg=None, **kwargs):
       super().__init__(**kwargs)
@@ -141,7 +141,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
         self, value: 'TestEnsembleAnomalyDetector.DummyEnsemble') -> bool:
       return self._my_ensemble_arg == value._my_ensemble_arg
 
-  @configurable(lazy_init=False)
+  @configurable(on_demand_init=False)
   class DummyWeakLearner(AnomalyDetector):
     def __init__(self, my_arg=None, **kwargs):
       super().__init__(**kwargs)

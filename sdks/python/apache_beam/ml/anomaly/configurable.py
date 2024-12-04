@@ -57,8 +57,7 @@ class Configurable():
       raise ValueError(f"Unknown config type '{config.type}' in {config}")
 
     args = {
-        k: Configurable._from_config_helper(v)
-        for k, v in config.args.items()
+        k: Configurable._from_config_helper(v) for k, v in config.args.items()
     }
 
     return subclass(**args)
@@ -84,8 +83,14 @@ class Configurable():
     return Config(type=self.__class__._key, args=args)
 
 
-def configurable(
-    my_cls=None, /, *, key=None, error_if_exists=True, lazy_init=True):
+def configurable(my_cls=None,
+                 /,
+                 *,
+                 key=None,
+                 error_if_exists=True,
+                 on_demand_init=True,
+                 just_in_time_init=True):
+
   def _register(cls) -> None:
     nonlocal key
     if key is None:
@@ -104,29 +109,49 @@ def configurable(
     original_init = cls.__init__
 
     def new_init(self, *args, **kwargs):
-      if not hasattr(self, "_init_params"):
+      self._initialized = False
+      if '_init_params' not in self.__dict__:
         params = dict(
             zip(
                 inspect.signature(original_init).parameters.keys(),
-                (None, ) + args))
+                (None,) + args))
         del params['self']
         params.update(**kwargs)
         self._init_params = params
 
-      if "_run_init" in kwargs:
+      if kwargs.get("_run_init", False):
         run_init = True
         del kwargs['_run_init']
       else:
         run_init = False
 
-      if lazy_init and not run_init:
-        if self._init_params is not None:
-          for k, v in self._init_params.items():
-            setattr(self, f"_{k}", v)
+      if on_demand_init and not run_init:
         return
 
+      # set it to True so that if original_init invoke any getattr, it will
+      # not enter an infinite loop.
+      self._initialized = True
       original_init(self, *args, **kwargs)
 
+    def new_getattr(self, name):
+      if '_initialized' in self.__dict__ and not self._initialized:
+        if name == "_init_params":
+          raise AttributeError(
+              f"'{type(self).__name__}' object has no attribute '{name}'")
+
+        # set it to True so that if original_init invoke any getattr, it will
+        # not enter an infinite loop.
+        self._initialized = True
+        original_init(self, **self._init_params)
+
+      if name not in self.__dict__:
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'")
+
+      return getattr(self, name)
+
+    if just_in_time_init:
+      cls.__getattr__ = new_getattr
     cls.__init__ = new_init
     return cls
 

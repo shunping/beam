@@ -78,7 +78,7 @@ class LodaWeakLearner(AnomalyDetector):
     return float(y_pred)
 
 
-@configurable(key="loda", lazy_init=False)
+@configurable(key="loda", on_demand_init=False, just_in_time_init=False)
 class Loda(EnsembleAnomalyDetector):
   def __init__(self, n: int = 10, aggregation_strategy=None, **kwargs):
     learners = []
