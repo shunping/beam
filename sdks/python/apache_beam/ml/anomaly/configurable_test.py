@@ -258,19 +258,36 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(foo_2.my_arg, 7890)
     self.assertEqual(FooOnDemandAndJustInTime.counter, 2)
 
-  def test_on_pickle(self):
-    @configurable(on_demand_init=True, just_in_time_init=True)
-    class FooForPickle():
-      counter = 0
+  @configurable(on_demand_init=True, just_in_time_init=True)
+  class FooForPickle():
+    counter = 0
 
-      def __init__(self, arg):
-        self.my_arg = arg * 10
-        type(self).counter += 1
+    def __init__(self, arg):
+      self.my_arg = arg * 10
+      type(self).counter += 1
+
+  def test_on_pickle(self):
+    FooForPickle = TestConfigurable.FooForPickle
 
     import dill
     foo = FooForPickle(456)
     self.assertEqual(FooForPickle.counter, 0)
     new_foo = dill.loads(dill.dumps(foo))
+    self.assertEqual(FooForPickle.counter, 0)
+    self.assertEqual(new_foo.__dict__, foo.__dict__)
+
+    # Note that pickle does not support classes/functions nested in a function.
+    import pickle
+    foo = FooForPickle(456)
+    self.assertEqual(FooForPickle.counter, 0)
+    new_foo = pickle.loads(pickle.dumps(foo))
+    self.assertEqual(FooForPickle.counter, 0)
+    self.assertEqual(new_foo.__dict__, foo.__dict__)
+
+    import cloudpickle
+    foo = FooForPickle(456)
+    self.assertEqual(FooForPickle.counter, 0)
+    new_foo = cloudpickle.loads(cloudpickle.dumps(foo))
     self.assertEqual(FooForPickle.counter, 0)
     self.assertEqual(new_foo.__dict__, foo.__dict__)
 
