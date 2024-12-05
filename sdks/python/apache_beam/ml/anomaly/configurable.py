@@ -20,7 +20,9 @@ import dataclasses
 import inspect
 from typing import Any
 from typing import List
+from typing import Protocol
 from typing import TypeVar
+from typing import runtime_checkable
 
 KNOWN_CONFIGURABLES = {}
 
@@ -33,7 +35,8 @@ class Config():
   args: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
-class Configurable():
+@runtime_checkable
+class Configurable(Protocol):
   _key: str
   _init_params: dict[str, Any]
 
@@ -156,6 +159,10 @@ def configurable(
       cls.__getattr__ = new_getattr
 
     cls.__init__ = new_init
+    cls.to_config = Configurable.to_config
+    cls._to_config_helper = staticmethod(Configurable._to_config_helper)
+    cls.from_config = classmethod(Configurable.from_config)
+    cls._from_config_helper = staticmethod(Configurable._from_config_helper)
     return cls
 
   if my_cls is None:

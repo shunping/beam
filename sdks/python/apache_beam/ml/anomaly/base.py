@@ -25,7 +25,6 @@ from typing import List
 from typing import Optional
 
 import apache_beam as beam
-from apache_beam.ml.anomaly.configurable import Configurable
 
 
 @dataclass(frozen=True)
@@ -44,7 +43,7 @@ class AnomalyResult():
   prediction: AnomalyPrediction
 
 
-class ThresholdFn(abc.ABC, Configurable):
+class ThresholdFn(abc.ABC):
   def __init__(self, normal_label: int = 0, outlier_label: int = 1):
     self._normal_label = normal_label
     self._outlier_label = outlier_label
@@ -64,14 +63,14 @@ class ThresholdFn(abc.ABC, Configurable):
     raise NotImplementedError
 
 
-class AggregationFn(abc.ABC, Configurable):
+class AggregationFn(abc.ABC):
   @abc.abstractmethod
   def apply(
       self, predictions: Iterable[AnomalyPrediction]) -> AnomalyPrediction:
     raise NotImplementedError
 
 
-class AnomalyDetector(abc.ABC, Configurable):
+class AnomalyDetector(abc.ABC):
   def __init__(
       self,
       model_id: Optional[str] = None,

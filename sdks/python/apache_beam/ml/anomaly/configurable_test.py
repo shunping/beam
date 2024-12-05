@@ -29,11 +29,11 @@ from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLES
 
 class TestConfigurable(unittest.TestCase):
   def test_register_configurable(self):
-    class MyClass(Configurable):
+    class MyClass():
       pass
 
     # class is not decorated/registered
-    self.assertRaises(ValueError, MyClass().to_config)
+    self.assertRaises(AttributeError, lambda: MyClass().to_config())
 
     self.assertNotIn("MyKey", KNOWN_CONFIGURABLES)
 
@@ -55,7 +55,7 @@ class TestConfigurable(unittest.TestCase):
   def test_decorator_key(self):
     # use decorator without parameter
     @configurable
-    class MySecondClass(Configurable):
+    class MySecondClass():
       pass
 
     self.assertIn("MySecondClass", KNOWN_CONFIGURABLES)
@@ -64,7 +64,7 @@ class TestConfigurable(unittest.TestCase):
 
     # use decorator with key parameter
     @configurable(key="MyThirdKey")
-    class MyThirdClass(Configurable):
+    class MyThirdClass():
       pass
 
     self.assertIn("MyThirdKey", KNOWN_CONFIGURABLES)
@@ -72,7 +72,7 @@ class TestConfigurable(unittest.TestCase):
 
   def test_init_params_in_configurable(self):
     @configurable
-    class MyClassWithInitParams(Configurable):
+    class MyClassWithInitParams():
       def __init__(self, arg_1, arg_2=2, arg_3="3", **kwargs):
         pass
 
@@ -99,7 +99,7 @@ class TestConfigurable(unittest.TestCase):
 
     # composite of configurable
     @configurable
-    class MyCompositeClassWithInitParams(Configurable):
+    class MyCompositeClassWithInitParams():
       def __init__(self, my_class: Optional[MyClassWithInitParams] = None):
         pass
 
@@ -109,13 +109,13 @@ class TestConfigurable(unittest.TestCase):
   def test_from_and_to_configurable(self):
     @configurable(on_demand_init=False, just_in_time_init=False)
     @dataclasses.dataclass
-    class Product(Configurable):
+    class Product():
       name: str
       price: float
 
     @configurable(
         key="shopping_entry", on_demand_init=False, just_in_time_init=False)
-    class Entry(Configurable):
+    class Entry():
       def __init__(self, product: Product, quantity: int = 1):
         self._product = product
         self._quantity = quantity
@@ -127,7 +127,7 @@ class TestConfigurable(unittest.TestCase):
     @configurable(
         key="shopping_cart", on_demand_init=False, just_in_time_init=False)
     @dataclasses.dataclass
-    class ShoppingCart(Configurable):
+    class ShoppingCart():
       user_id: str
       entries: List[Entry]
 
