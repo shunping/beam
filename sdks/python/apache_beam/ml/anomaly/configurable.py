@@ -110,6 +110,12 @@ def configurable(my_cls=None,
 
     def new_init(self, *args, **kwargs):
       self._initialized = False
+      if kwargs.get("_run_init", False):
+        run_init = True
+        del kwargs['_run_init']
+      else:
+        run_init = False
+
       if '_init_params' not in self.__dict__:
         params = dict(
             zip(
@@ -119,13 +125,8 @@ def configurable(my_cls=None,
         params.update(**kwargs)
         self._init_params = params
 
-      if kwargs.get("_run_init", False):
-        run_init = True
-        del kwargs['_run_init']
-      else:
-        run_init = False
-
-      if on_demand_init and not run_init:
+      if (on_demand_init and not run_init) or \
+          (not on_demand_init and just_in_time_init):
         return
 
       # set it to True so that if original_init invoke any getattr, it will
@@ -134,7 +135,7 @@ def configurable(my_cls=None,
       original_init(self, *args, **kwargs)
 
     def new_getattr(self, name):
-      if '_initialized' in self.__dict__ and not self._initialized:
+      if '_initialized' in self.__dict__ and not self.__dict__['_initialized']:
         if name == "_init_params":
           raise AttributeError(
               f"'{type(self).__name__}' object has no attribute '{name}'")
@@ -148,14 +149,17 @@ def configurable(my_cls=None,
         raise AttributeError(
             f"'{type(self).__name__}' object has no attribute '{name}'")
 
-      return getattr(self, name)
+      return self.__dict__[name]
 
     if just_in_time_init:
       cls.__getattr__ = new_getattr
+
     cls.__init__ = new_init
     return cls
 
   if my_cls is None:
+    # support @configurable(...)
     return _register_and_track_init_params
 
+  # support @configurable without arguments
   return _register_and_track_init_params(my_cls)
