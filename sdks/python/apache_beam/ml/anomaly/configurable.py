@@ -57,7 +57,8 @@ class Configurable():
       raise ValueError(f"Unknown config type '{config.type}' in {config}")
 
     args = {
-        k: Configurable._from_config_helper(v) for k, v in config.args.items()
+        k: Configurable._from_config_helper(v)
+        for k, v in config.args.items()
     }
 
     return subclass(**args)
@@ -83,14 +84,14 @@ class Configurable():
     return Config(type=self.__class__._key, args=args)
 
 
-def configurable(my_cls=None,
-                 /,
-                 *,
-                 key=None,
-                 error_if_exists=True,
-                 on_demand_init=True,
-                 just_in_time_init=True):
-
+def configurable(
+    my_cls=None,
+    /,
+    *,
+    key=None,
+    error_if_exists=True,
+    on_demand_init=True,
+    just_in_time_init=True):
   def _register(cls) -> None:
     nonlocal key
     if key is None:
@@ -120,7 +121,7 @@ def configurable(my_cls=None,
         params = dict(
             zip(
                 inspect.signature(original_init).parameters.keys(),
-                (None,) + args))
+                (None, ) + args))
         del params['self']
         params.update(**kwargs)
         self._init_params = params

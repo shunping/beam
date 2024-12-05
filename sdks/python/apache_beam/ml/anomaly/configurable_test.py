@@ -28,9 +28,7 @@ from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLES
 
 
 class TestConfigurable(unittest.TestCase):
-
   def test_register_configurable(self):
-
     class MyClass(Configurable):
       pass
 
@@ -73,10 +71,8 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(KNOWN_CONFIGURABLES["MyThirdKey"], MyThirdClass)
 
   def test_init_params_in_configurable(self):
-
     @configurable
     class MyClassWithInitParams(Configurable):
-
       def __init__(self, arg_1, arg_2=2, arg_3="3", **kwargs):
         pass
 
@@ -86,14 +82,14 @@ class TestConfigurable(unittest.TestCase):
     # inheritance of configurable
     @configurable
     class MyDerivedClassWithInitParams(MyClassWithInitParams):
-
       def __init__(self, new_arg_1, new_arg_2=200, new_arg_3="300", **kwargs):
         super().__init__(**kwargs)
 
     b = MyDerivedClassWithInitParams(
         1000, arg_1=11, arg_2=20, new_arg_2=2000, arg_4=4000)
     self.assertEqual(
-        b._init_params, {
+        b._init_params,
+        {
             'new_arg_1': 1000,
             'arg_1': 11,
             'arg_2': 20,
@@ -104,7 +100,6 @@ class TestConfigurable(unittest.TestCase):
     # composite of configurable
     @configurable
     class MyCompositeClassWithInitParams(Configurable):
-
       def __init__(self, my_class: Optional[MyClassWithInitParams] = None):
         pass
 
@@ -112,7 +107,6 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(c._init_params, {'my_class': a})
 
   def test_from_and_to_configurable(self):
-
     @configurable(on_demand_init=False, just_in_time_init=False)
     @dataclasses.dataclass
     class Product(Configurable):
@@ -122,7 +116,6 @@ class TestConfigurable(unittest.TestCase):
     @configurable(
         key="shopping_entry", on_demand_init=False, just_in_time_init=False)
     class Entry(Configurable):
-
       def __init__(self, product: Product, quantity: int = 1):
         self._product = product
         self._quantity = quantity
@@ -142,8 +135,7 @@ class TestConfigurable(unittest.TestCase):
 
     expected_orange_config = Config(
         "Product", args={
-            'name': 'orange',
-            'price': 1.0
+            'name': 'orange', 'price': 1.0
         })
     self.assertEqual(orange.to_config(), expected_orange_config)
     self.assertEqual(Configurable.from_config(expected_orange_config), orange)
@@ -161,15 +153,13 @@ class TestConfigurable(unittest.TestCase):
     banana = Product("banana", 0.5)
     expected_banana_config = Config(
         "Product", args={
-            'name': 'banana',
-            'price': 0.5
+            'name': 'banana', 'price': 0.5
         })
     entry_2 = Entry(product=banana, quantity=5)
     expected_entry_config_2 = Config(
         "shopping_entry",
         args={
-            'product': expected_banana_config,
-            'quantity': 5
+            'product': expected_banana_config, 'quantity': 5
         })
 
     shopping_cart = ShoppingCart(user_id="test", entries=[entry_1, entry_2])
@@ -185,10 +175,10 @@ class TestConfigurable(unittest.TestCase):
         Configurable.from_config(expected_shopping_cart_config), shopping_cart)
 
   def test_on_demand_init(self):
-
     @configurable(on_demand_init=True, just_in_time_init=False)
     class FooOnDemand():
       counter = 0
+
       def __init__(self, arg):
         self.my_arg = arg * 10
         type(self).counter += 1
@@ -215,10 +205,10 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(FooOnDemand.counter, 1)
 
   def test_just_in_time_init(self):
-
     @configurable(on_demand_init=False, just_in_time_init=True)
     class FooJustInTime():
       counter = 0
+
       def __init__(self, arg):
         self.my_arg = arg * 10
         type(self).counter += 1
@@ -241,6 +231,7 @@ class TestConfigurable(unittest.TestCase):
     @configurable(on_demand_init=True, just_in_time_init=True)
     class FooOnDemandAndJustInTime():
       counter = 0
+
       def __init__(self, arg):
         self.my_arg = arg * 10
         type(self).counter += 1
@@ -263,7 +254,7 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(foo_2.__dict__["_init_params"], {"arg": 789})
 
     self.assertEqual(FooOnDemandAndJustInTime.counter, 2)
-     # __init__ is NOT called
+    # __init__ is NOT called
     self.assertEqual(foo_2.my_arg, 7890)
     self.assertEqual(FooOnDemandAndJustInTime.counter, 2)
 
@@ -271,6 +262,7 @@ class TestConfigurable(unittest.TestCase):
     @configurable(on_demand_init=True, just_in_time_init=True)
     class FooForPickle():
       counter = 0
+
       def __init__(self, arg):
         self.my_arg = arg * 10
         type(self).counter += 1
@@ -281,6 +273,7 @@ class TestConfigurable(unittest.TestCase):
     new_foo = dill.loads(dill.dumps(foo))
     self.assertEqual(FooForPickle.counter, 0)
     self.assertEqual(new_foo.__dict__, foo.__dict__)
+
 
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.INFO)
