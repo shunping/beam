@@ -101,6 +101,16 @@ def register(cls, key, error_if_exists) -> None:
   cls._key = key
 
 
+def track_init_params(inst, init_method, *args, **kwargs):
+  params = dict(
+    zip(
+        inspect.signature(init_method).parameters.keys(),
+        (None, ) + args))
+  del params['self']
+  params.update(**kwargs)
+  inst._init_params = params
+
+
 def configurable(
     my_cls=None,
     /,
@@ -110,8 +120,8 @@ def configurable(
     on_demand_init=True,
     just_in_time_init=True):
 
-
-  def _register_and_track_init_params(cls):
+  # register a configurable, track init params for each instance, lazy init
+  def _wrapper(cls):
     register(cls, key, error_if_exists)
 
     original_init = cls.__init__
@@ -128,13 +138,7 @@ def configurable(
         run_init = False
 
       if '_init_params' not in self.__dict__:
-        params = dict(
-            zip(
-                inspect.signature(original_init).parameters.keys(),
-                (None, ) + args))
-        del params['self']
-        params.update(**kwargs)
-        self._init_params = params
+        track_init_params(self, original_init, *args, **kwargs)
 
         # If it is not a nested configurable, we choose whether to skip original
         # init call based on options. Otherwise, we always call original init
@@ -191,7 +195,7 @@ def configurable(
 
   if my_cls is None:
     # support @configurable(...)
-    return _register_and_track_init_params
+    return _wrapper
 
   # support @configurable without arguments
-  return _register_and_track_init_params(my_cls)
+  return _wrapper(my_cls)
