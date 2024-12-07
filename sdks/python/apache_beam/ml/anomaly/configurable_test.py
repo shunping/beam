@@ -17,6 +17,7 @@
 
 import dataclasses
 import logging
+from parameterized import parameterized
 from typing import List
 from typing import Optional
 import unittest
@@ -33,7 +34,7 @@ class TestConfigurable(unittest.TestCase):
       pass
 
     # class is not decorated/registered
-    self.assertRaises(AttributeError, lambda: MyClass().to_config())
+    self.assertRaises(AttributeError, lambda: MyClass().to_config())  # type: ignore
 
     self.assertNotIn("MyKey", KNOWN_CONFIGURABLES)
 
@@ -77,6 +78,7 @@ class TestConfigurable(unittest.TestCase):
         pass
 
     a = MyClassWithInitParams(10, arg_3="30", arg_4=40)
+    assert isinstance(a, Configurable)
     self.assertEqual(a._init_params, {'arg_1': 10, 'arg_3': '30', 'arg_4': 40})
 
     # inheritance of configurable
@@ -87,6 +89,7 @@ class TestConfigurable(unittest.TestCase):
 
     b = MyDerivedClassWithInitParams(
         1000, arg_1=11, arg_2=20, new_arg_2=2000, arg_4=4000)
+    assert isinstance(b, Configurable)
     self.assertEqual(
         b._init_params,
         {
@@ -104,6 +107,7 @@ class TestConfigurable(unittest.TestCase):
         pass
 
     c = MyCompositeClassWithInitParams(a)
+    assert isinstance(c, Configurable)
     self.assertEqual(c._init_params, {'my_class': a})
 
   def test_from_and_to_configurable(self):
@@ -137,6 +141,7 @@ class TestConfigurable(unittest.TestCase):
         "Product", args={
             'name': 'orange', 'price': 1.0
         })
+    assert isinstance(orange, Configurable)
     self.assertEqual(orange.to_config(), expected_orange_config)
     self.assertEqual(Configurable.from_config(expected_orange_config), orange)
 
@@ -147,6 +152,7 @@ class TestConfigurable(unittest.TestCase):
             'product': expected_orange_config,
         })
 
+    assert isinstance(entry_1, Configurable)
     self.assertEqual(entry_1.to_config(), expected_entry_config_1)
     self.assertEqual(Configurable.from_config(expected_entry_config_1), entry_1)
 
@@ -170,6 +176,7 @@ class TestConfigurable(unittest.TestCase):
             "entries": [expected_entry_config_1, expected_entry_config_2]
         })
 
+    assert isinstance(shopping_cart, Configurable)
     self.assertEqual(shopping_cart.to_config(), expected_shopping_cart_config)
     self.assertEqual(
         Configurable.from_config(expected_shopping_cart_config), shopping_cart)
@@ -181,7 +188,7 @@ class TestConfigurable(unittest.TestCase):
 
       def __init__(self, arg):
         self.my_arg = arg * 10
-        type(self).counter += 1
+        FooOnDemand.counter += 1
 
     foo = FooOnDemand(123)
     self.assertEqual(FooOnDemand.counter, 0)
@@ -211,7 +218,7 @@ class TestConfigurable(unittest.TestCase):
 
       def __init__(self, arg):
         self.my_arg = arg * 10
-        type(self).counter += 1
+        FooJustInTime.counter += 1
 
     foo = FooJustInTime(321)
     self.assertEqual(FooJustInTime.counter, 0)
@@ -234,7 +241,7 @@ class TestConfigurable(unittest.TestCase):
 
       def __init__(self, arg):
         self.my_arg = arg * 10
-        type(self).counter += 1
+        FooOnDemandAndJustInTime.counter += 1
 
     foo = FooOnDemandAndJustInTime(987)
     self.assertEqual(FooOnDemandAndJustInTime.counter, 0)
@@ -292,6 +299,113 @@ class TestConfigurable(unittest.TestCase):
     self.assertEqual(new_foo.__dict__, foo.__dict__)
 
 
+
+@configurable
+class Parent():
+  counter = 0
+  parent_class_var = 1000
+  def __init__(self, p):
+    self.parent_inst_var = p * 10
+    Parent.counter += 1
+
+
+@configurable
+class Child_1(Parent):
+  counter = 0
+  child_class_var = 2001
+  def __init__(self, c):
+    super().__init__(c)
+    self.child_inst_var = c + 1
+    Child_1.counter += 1
+
+
+@configurable
+class Child_2(Parent):
+  counter = 0
+  child_class_var = 2001
+  def __init__(self, c):
+    self.child_inst_var = c + 1
+    super().__init__(c)
+    Child_2.counter += 1
+
+
+@configurable
+class Child_Error_1(Parent):
+  counter = 0
+  child_class_var = 2001
+  def __init__(self, c):
+    self.child_inst_var += 1    # type: ignore
+    super().__init__(c)
+    Child_2.counter += 1
+
+
+@configurable
+class Child_Error_2(Parent):
+  counter = 0
+  child_class_var = 2001
+  def __init__(self, c):
+    self.parent_inst_var += 1    # type: ignore
+    Child_2.counter += 1
+
+
+class TestNestedConfigurable(unittest.TestCase):
+  @parameterized.expand([[Child_1, 0], [Child_2, 0],
+                         [Child_1, 1], [Child_2, 1],
+                         [Child_1, 2], [Child_2, 2]])
+  def test_nested_configurable(self, Child, mode):
+    Parent.counter = 0
+    Child.counter = 0
+    child = Child(5)
+
+    self.assertEqual(Parent.counter, 0)
+    self.assertEqual(Child.counter, 0)
+
+    # accessing class vars won't trigger __init__
+    self.assertEqual(child.parent_class_var, 1000)
+    self.assertEqual(child.child_class_var, 2001)
+    self.assertEqual(Parent.counter, 0)
+    self.assertEqual(Child.counter, 0)
+
+    # accessing instance var will trigger __init__
+    if mode == 0:
+      self.assertEqual(child.parent_inst_var, 50)
+    elif mode == 1:
+      self.assertEqual(child.child_inst_var, 6)
+    else:
+      self.assertRaises(AttributeError, lambda : child.unknown_var)
+
+    self.assertEqual(Parent.counter, 1)
+    self.assertEqual(Child.counter, 1)
+
+    # after initialization, it won't trigger __init__ again
+    self.assertEqual(child.parent_inst_var, 50)
+    self.assertEqual(child.child_inst_var, 6)
+    self.assertRaises(AttributeError, lambda : child.unknown_var)
+
+    self.assertEqual(Parent.counter, 1)
+    self.assertEqual(Child.counter, 1)
+
+  def test_error_in_child(self):
+    Parent.counter = 0
+    child_1 = Child_Error_1(5)
+
+    self.assertEqual(child_1.child_class_var, 2001)
+
+    # error during child initialization
+    self.assertRaises(AttributeError, lambda : child_1.child_inst_var)  # type: ignore
+    self.assertEqual(Parent.counter, 0)
+    self.assertEqual(Child_1.counter, 0)
+
+
+    child_2 = Child_Error_2(5)
+    self.assertEqual(child_2.child_class_var, 2001)
+
+    # error during child initialization
+    self.assertRaises(AttributeError, lambda : child_2.parent_inst_var)  # type: ignore
+    self.assertEqual(Parent.counter, 0)
+    self.assertEqual(Child_2.counter, 0)
+
+
 if __name__ == '__main__':
-  logging.getLogger().setLevel(logging.INFO)
+  logging.getLogger().setLevel(logging.DEBUG)
   unittest.main()

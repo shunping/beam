@@ -72,6 +72,8 @@ class TestAnomalyDetector(unittest.TestCase):
     self.assertEqual(a._model_id, "Dummy")
     self.assertEqual(a._target, "ABC")
     self.assertEqual(a._my_arg, "abc")
+
+    assert isinstance(a, Configurable)
     self.assertEqual(
         a._init_params, {
             "my_arg": "abc",
@@ -87,6 +89,8 @@ class TestAnomalyDetector(unittest.TestCase):
     self.assertEqual(b._model_id, "my_dummy")
     self.assertEqual(b._target, "EFG")
     self.assertEqual(b._my_arg, "efg")
+
+    assert isinstance(b, Configurable)
     self.assertEqual(
         b._init_params,
         {
@@ -103,6 +107,7 @@ class TestAnomalyDetector(unittest.TestCase):
         target="HIJ",
         threshold_criterion=self.DummyThreshold(4))
 
+    assert isinstance(obj, Configurable)
     config = obj.to_config()
     expected_config = Config(
         type="Dummy",
@@ -191,6 +196,8 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
                 args={},
             ),
         })
+
+    assert isinstance(ensemble, Configurable)
     config = ensemble.to_config()
     self.assertEqual(config, expected_config)
 

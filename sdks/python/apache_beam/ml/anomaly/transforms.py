@@ -175,6 +175,7 @@ class _RunEnsembleDetector(
 
     ret: Any = merged
     if self._ensemble_detector._aggregation_strategy is not None:
+      assert isinstance(self._ensemble_detector._aggregation_strategy, Configurable)
       aggregation_strategy_config = self._ensemble_detector._aggregation_strategy.to_config(
       )
       aggregation_strategy_config.args["_run_init"] = True

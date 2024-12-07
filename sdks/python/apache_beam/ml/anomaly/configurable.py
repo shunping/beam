@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import dataclasses
 import inspect
+import logging
 from typing import Any
 from typing import List
 from typing import Protocol
 from typing import TypeVar
+from typing import Type
 from typing import runtime_checkable
 
 KNOWN_CONFIGURABLES = {}
@@ -51,11 +53,11 @@ class Configurable(Protocol):
     return v
 
   @classmethod
-  def from_config(cls, config: Config) -> Configurable:
+  def from_config(cls: Type[ConfigT], config: Config) -> ConfigT:
     if config.type is None:
       raise ValueError(f"Config type not found in {config}")
 
-    subclass = KNOWN_CONFIGURABLES.get(config.type, None)
+    subclass: Type[ConfigT] = KNOWN_CONFIGURABLES.get(config.type, None)
     if subclass is None:
       raise ValueError(f"Unknown config type '{config.type}' in {config}")
 
@@ -87,6 +89,18 @@ class Configurable(Protocol):
     return Config(type=self.__class__._key, args=args)
 
 
+def register(cls, key, error_if_exists) -> None:
+  if key is None:
+    key = cls.__name__
+
+  if key in KNOWN_CONFIGURABLES and error_if_exists:
+    raise ValueError(f"{key} is already registered for configurable")
+
+  KNOWN_CONFIGURABLES[key] = cls
+
+  cls._key = key
+
+
 def configurable(
     my_cls=None,
     /,
@@ -95,25 +109,18 @@ def configurable(
     error_if_exists=True,
     on_demand_init=True,
     just_in_time_init=True):
-  def _register(cls) -> None:
-    nonlocal key
-    if key is None:
-      key = cls.__name__
 
-    if key in KNOWN_CONFIGURABLES and error_if_exists:
-      raise ValueError(f"{key} is already registered for configurable")
-
-    KNOWN_CONFIGURABLES[key] = cls
-
-    cls._key = key
 
   def _register_and_track_init_params(cls):
-    _register(cls)
+    register(cls, key, error_if_exists)
 
     original_init = cls.__init__
+    class_name = cls.__name__
 
     def new_init(self, *args, **kwargs):
       self._initialized = False
+      self._nested_getattr = False
+
       if kwargs.get("_run_init", False):
         run_init = True
         del kwargs['_run_init']
@@ -129,31 +136,46 @@ def configurable(
         params.update(**kwargs)
         self._init_params = params
 
-      if (on_demand_init and not run_init) or \
-          (not on_demand_init and just_in_time_init):
-        return
+        # If it is not a nested configurable, we choose whether to skip original
+        # init call based on options. Otherwise, we always call original init
+        # for inner (parent/grandparent/etc) configurable.
+        if (on_demand_init and not run_init) or \
+            (not on_demand_init and just_in_time_init):
+          return
 
-      # set it to True so that if original_init invoke any getattr, it will
-      # not enter an infinite loop.
-      self._initialized = True
+      logging.debug("call original %s.__init__ in new_init", class_name)
       original_init(self, *args, **kwargs)
+      self._initialized = True
+
+    # origin_getattribute = cls.__getattribute__
+
+    # def new_get_attribute(self, x):
+    #   print(f"call {class_name}.__getattribute__({x})")
+    #   return origin_getattribute(self, x)
+
+    #cls.__getattribute__ = new_get_attribute
 
     def new_getattr(self, name):
-      if '_initialized' in self.__dict__ and not self.__dict__['_initialized']:
-        if name == "_init_params":
-          raise AttributeError(
+      if name == '_nested_getattr' or \
+          ('_nested_getattr' in self.__dict__ and self._nested_getattr):
+        self._nested_getattr = False
+        raise AttributeError(
               f"'{type(self).__name__}' object has no attribute '{name}'")
 
-        # set it to True so that if original_init invoke any getattr, it will
-        # not enter an infinite loop.
-        self._initialized = True
+      # set it before original init, in case getattr is called in original init
+      self._nested_getattr = True
+
+      if not self._initialized:
+        logging.debug("call original %s.__init__ in new_getattr", class_name)
         original_init(self, **self._init_params)
+        self._initialized = True
 
-      if name not in self.__dict__:
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'")
-
-      return self.__dict__[name]
+      try:
+        logging.debug("call original %s.getattr in new_getattr", class_name)
+        ret = getattr(self, name)
+      finally:
+        self._nested_getattr = False
+      return ret
 
     if just_in_time_init:
       cls.__getattr__ = new_getattr
@@ -161,7 +183,7 @@ def configurable(
     cls.__init__ = new_init
     cls.to_config = Configurable.to_config
     cls._to_config_helper = staticmethod(Configurable._to_config_helper)
-    cls.from_config = classmethod(Configurable.from_config)
+    cls.from_config  = classmethod(Configurable.from_config)  # type: ignore
     cls._from_config_helper = staticmethod(Configurable._from_config_helper)
     return cls
 
