@@ -119,7 +119,7 @@ def configurable(
 
     def new_init(self, *args, **kwargs):
       self._initialized = False
-      self._nested_getattr = False
+      #self._nested_getattr = False
 
       if kwargs.get("_run_init", False):
         run_init = True
@@ -158,7 +158,8 @@ def configurable(
     def new_getattr(self, name):
       if name == '_nested_getattr' or \
           ('_nested_getattr' in self.__dict__ and self._nested_getattr):
-        self._nested_getattr = False
+        #self._nested_getattr = False
+        delattr(self, "_nested_getattr")
         raise AttributeError(
               f"'{type(self).__name__}' object has no attribute '{name}'")
 
@@ -174,7 +175,8 @@ def configurable(
         logging.debug("call original %s.getattr in new_getattr", class_name)
         ret = getattr(self, name)
       finally:
-        self._nested_getattr = False
+        # self._nested_getattr = False
+        delattr(self, "_nested_getattr")
       return ret
 
     if just_in_time_init:

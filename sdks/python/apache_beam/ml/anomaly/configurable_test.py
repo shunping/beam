@@ -277,26 +277,44 @@ class TestConfigurable(unittest.TestCase):
     FooForPickle = TestConfigurable.FooForPickle
 
     import dill
+    FooForPickle.counter = 0
     foo = FooForPickle(456)
     self.assertEqual(FooForPickle.counter, 0)
     new_foo = dill.loads(dill.dumps(foo))
     self.assertEqual(FooForPickle.counter, 0)
     self.assertEqual(new_foo.__dict__, foo.__dict__)
+    self.assertEqual(foo.my_arg, 4560)
+    self.assertEqual(FooForPickle.counter, 1)
+    new_foo_2 = dill.loads(dill.dumps(foo))
+    self.assertEqual(FooForPickle.counter, 1)
+    self.assertEqual(new_foo_2.__dict__, foo.__dict__)
 
     # Note that pickle does not support classes/functions nested in a function.
     import pickle
+    FooForPickle.counter = 0
     foo = FooForPickle(456)
     self.assertEqual(FooForPickle.counter, 0)
     new_foo = pickle.loads(pickle.dumps(foo))
     self.assertEqual(FooForPickle.counter, 0)
     self.assertEqual(new_foo.__dict__, foo.__dict__)
+    self.assertEqual(foo.my_arg, 4560)
+    self.assertEqual(FooForPickle.counter, 1)
+    new_foo_2 = pickle.loads(pickle.dumps(foo))
+    self.assertEqual(FooForPickle.counter, 1)
+    self.assertEqual(new_foo_2.__dict__, foo.__dict__)
 
     import cloudpickle
+    FooForPickle.counter = 0
     foo = FooForPickle(456)
     self.assertEqual(FooForPickle.counter, 0)
     new_foo = cloudpickle.loads(cloudpickle.dumps(foo))
     self.assertEqual(FooForPickle.counter, 0)
     self.assertEqual(new_foo.__dict__, foo.__dict__)
+    self.assertEqual(foo.my_arg, 4560)
+    self.assertEqual(FooForPickle.counter, 1)
+    new_foo_2 = cloudpickle.loads(cloudpickle.dumps(foo))
+    self.assertEqual(FooForPickle.counter, 1)
+    self.assertEqual(new_foo_2.__dict__, foo.__dict__)
 
 
 
