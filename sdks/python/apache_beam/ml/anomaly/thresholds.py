@@ -30,16 +30,16 @@ from apache_beam.coders import DillCoder
 from apache_beam.ml.anomaly import univariate
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import ThresholdFn
-from apache_beam.ml.anomaly.configurable import Config
-from apache_beam.ml.anomaly.configurable import configurable
-from apache_beam.ml.anomaly.configurable import Configurable
+from apache_beam.ml.anomaly.specifiable import Spec
+from apache_beam.ml.anomaly.specifiable import specifiable
+from apache_beam.ml.anomaly.specifiable import Specifiable
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 
 
 class BaseThresholdDoFn(beam.DoFn):
-  def __init__(self, threshold_fn_config: Config):
-    self._threshold_fn_config = threshold_fn_config
+  def __init__(self, threshold_fn_spec: Spec):
+    self._threshold_fn_spec = threshold_fn_spec
     self._threshold_fn: ThresholdFn
 
   def _update_prediction(self, result: AnomalyResult) -> AnomalyResult:
@@ -53,10 +53,10 @@ class BaseThresholdDoFn(beam.DoFn):
 
 
 class StatelessThresholdDoFn(BaseThresholdDoFn):
-  def __init__(self, threshold_fn_config: Config):
-    threshold_fn_config.args["_run_init"] = True
+  def __init__(self, threshold_fn_spec: Spec):
+    threshold_fn_spec.config["_run_init"] = True
     self._threshold_fn = cast(
-        ThresholdFn, Configurable.from_config(threshold_fn_config))
+        ThresholdFn, Specifiable.from_spec(threshold_fn_spec))
     assert not self._threshold_fn.is_stateful, \
       "This DoFn can only take stateless function as threshold_fn"
 
@@ -69,13 +69,13 @@ class StatelessThresholdDoFn(BaseThresholdDoFn):
 class StatefulThresholdDoFn(BaseThresholdDoFn):
   THRESHOLD_STATE_INDEX = ReadModifyWriteStateSpec('saved_tracker', DillCoder())
 
-  def __init__(self, threshold_fn_config: Config):
-    threshold_fn_config.args["_run_init"] = True
+  def __init__(self, threshold_fn_spec: Spec):
+    threshold_fn_spec.config["_run_init"] = True
     threshold_fn: ThresholdFn = cast(
-        ThresholdFn, Configurable.from_config(threshold_fn_config))
+        ThresholdFn, Specifiable.from_spec(threshold_fn_spec))
     assert threshold_fn.is_stateful, \
       "This DoFn can only take stateful function as threshold_fn"
-    self._threshold_fn_config = threshold_fn_config
+    self._threshold_fn_spec = threshold_fn_spec
 
   def process(
       self,
@@ -87,15 +87,15 @@ class StatefulThresholdDoFn(BaseThresholdDoFn):
 
     self._threshold_fn = threshold_state.read()
     if self._threshold_fn is None:
-      self._threshold_fn: Configurable = Configurable.from_config(
-          self._threshold_fn_config)
+      self._threshold_fn: Specifiable = Specifiable.from_spec(
+          self._threshold_fn_spec)
 
     yield k1, (k2, self._update_prediction(prediction))
 
     threshold_state.write(self._threshold_fn)
 
 
-@configurable
+@specifiable
 class FixedThreshold(ThresholdFn):
   def __init__(self, cutoff: float, **kwargs):
     super().__init__(**kwargs)
@@ -116,7 +116,7 @@ class FixedThreshold(ThresholdFn):
     return self._outlier_label
 
 
-@configurable
+@specifiable
 class QuantileThreshold(ThresholdFn):
   def __init__(self, quantile: float, **kwargs):
     super().__init__(**kwargs)

@@ -33,9 +33,9 @@ from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AggregationFn
 from apache_beam.ml.anomaly.base import ThresholdFn
 from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
-from apache_beam.ml.anomaly.configurable import Config
-from apache_beam.ml.anomaly.configurable import Configurable
-from apache_beam.ml.anomaly.configurable import KNOWN_CONFIGURABLES
+from apache_beam.ml.anomaly.specifiable import Spec
+from apache_beam.ml.anomaly.specifiable import Specifiable
+from apache_beam.ml.anomaly.specifiable import KNOWN_SPECIFIABLE
 from apache_beam.transforms.userstate import ReadModifyWriteStateSpec
 from apache_beam.transforms.userstate import ReadModifyWriteRuntimeState
 from apache_beam.utils import timestamp
@@ -44,12 +44,12 @@ from apache_beam.utils import timestamp
 class _ScoreAndLearn(beam.DoFn):
   MODEL_STATE_INDEX = ReadModifyWriteStateSpec('saved_model', DillCoder())
 
-  def __init__(self, detector_config: Config):
-    self._detector_config = detector_config
-    self._detector_config.args["_run_init"] = True
+  def __init__(self, detector_spec: Spec):
+    self._detector_spec = detector_spec
+    self._detector_spec.config["_run_init"] = True
 
-    if detector_config.type not in KNOWN_CONFIGURABLES:
-      raise NotImplementedError(f"algorithm '{detector_config.type}' not found")
+    if detector_spec.type not in KNOWN_SPECIFIABLE:
+      raise NotImplementedError(f"algorithm '{detector_spec.type}' not found")
 
   def score_and_learn(self, data):
     assert self._underlying
@@ -72,7 +72,7 @@ class _ScoreAndLearn(beam.DoFn):
     self._underlying: AnomalyDetector = model_state.read()
     if self._underlying is None:
       self._underlying = cast(
-          AnomalyDetector, Configurable.from_config(self._detector_config))
+          AnomalyDetector, Specifiable.from_spec(self._detector_spec))
 
     yield k1, (k2,
                AnomalyResult(
@@ -95,19 +95,19 @@ class _RunThresholdCriterion(
       self, input: beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]
   ) -> beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]:
 
-    # threshold_fn = ThresholdFn.from_config(self._threshold_criterion)
+    # threshold_fn = ThresholdFn.from_spec(self._threshold_criterion)
     threshold_fn = self._threshold_criterion
     if threshold_fn:
       if threshold_fn.is_stateful:
         postprocess_result = (
             input
             | beam.ParDo(
-                thresholds.StatefulThresholdDoFn(threshold_fn.to_config())))
+                thresholds.StatefulThresholdDoFn(threshold_fn.to_spec())))
       else:
         postprocess_result = (
             input
             | beam.ParDo(
-                thresholds.StatelessThresholdDoFn(threshold_fn.to_config())))
+                thresholds.StatelessThresholdDoFn(threshold_fn.to_spec())))
     else:
       postprocess_result: Any = input
 
@@ -118,7 +118,7 @@ class _RunOneDetector(
     beam.PTransform[beam.PCollection[Tuple[Any, Tuple[Any, beam.Row]]],
                     beam.PCollection[Tuple[Any, Tuple[Any, AnomalyResult]]]]):
   def __init__(self, detector):
-    # self._detector = AnomalyDetector.from_config(detector)
+    # self._detector = AnomalyDetector.from_spec(detector)
     self._detector = detector
 
   def expand(
@@ -135,7 +135,7 @@ class _RunOneDetector(
         input
         | beam.Reshuffle()
         | f"Score and Learn ({model_uuid})" >> beam.ParDo(
-            _ScoreAndLearn(self._detector.to_config())).with_output_types(
+            _ScoreAndLearn(self._detector.to_spec())).with_output_types(
                 Tuple[Any, Tuple[Any, AnomalyResult]])
         | f"Run Threshold Criterion ({model_uuid})" >> _RunThresholdCriterion(
             model_id, threshold_criterion))
@@ -175,12 +175,12 @@ class _RunEnsembleDetector(
 
     ret: Any = merged
     if self._ensemble_detector._aggregation_strategy is not None:
-      assert isinstance(self._ensemble_detector._aggregation_strategy, Configurable)
-      aggregation_strategy_config = self._ensemble_detector._aggregation_strategy.to_config(
+      assert isinstance(self._ensemble_detector._aggregation_strategy, Specifiable)
+      aggregation_strategy_spec = self._ensemble_detector._aggregation_strategy.to_spec(
       )
-      aggregation_strategy_config.args["_run_init"] = True
+      aggregation_strategy_spec.config["_run_init"] = True
       aggregation_strategy: AggregationFn | None = cast(
-          AggregationFn, Configurable.from_config(aggregation_strategy_config))
+          AggregationFn, Specifiable.from_spec(aggregation_strategy_spec))
     else:
       aggregation_strategy = None
 
