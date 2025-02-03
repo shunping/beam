@@ -20,83 +20,86 @@ import dataclasses
 import inspect
 import logging
 from typing import Any
+from typing import ClassVar
 from typing import List
 from typing import Protocol
 from typing import TypeVar
 from typing import Type
 from typing import runtime_checkable
 
-KNOWN_CONFIGURABLES = {}
+from typing_extensions import Self
 
-ConfigT = TypeVar('ConfigT', bound='Configurable')
+KNOWN_SPECIFIABLE = {}
+
+SpecT = TypeVar('SpecT', bound='Specifiable')
 
 
 @dataclasses.dataclass(frozen=True)
-class Config():
+class Spec():
   type: str
-  args: dict[str, Any] = dataclasses.field(default_factory=dict)
+  config: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @runtime_checkable
-class Configurable(Protocol):
-  _key: str
+class Specifiable(Protocol):
+  _key: ClassVar[str]
   _init_params: dict[str, Any]
 
   @staticmethod
-  def _from_config_helper(v):
-    if isinstance(v, Config):
-      return Configurable.from_config(v)
+  def _from_spec_helper(v):
+    if isinstance(v, Spec):
+      return Specifiable.from_spec(v)
 
     if isinstance(v, List):
-      return [Configurable._from_config_helper(e) for e in v]
+      return [Specifiable._from_spec_helper(e) for e in v]
 
     return v
 
   @classmethod
-  def from_config(cls: Type[ConfigT], config: Config) -> ConfigT:
-    if config.type is None:
-      raise ValueError(f"Config type not found in {config}")
+  def from_spec(cls, spec: Spec) -> Self:
+    if spec.type is None:
+      raise ValueError(f"Spec type not found in {spec}")
 
-    subclass: Type[ConfigT] = KNOWN_CONFIGURABLES.get(config.type, None)
+    subclass: Type[Self] = KNOWN_SPECIFIABLE.get(spec.type, None)
     if subclass is None:
-      raise ValueError(f"Unknown config type '{config.type}' in {config}")
+      raise ValueError(f"Unknown spec type '{spec.type}' in {spec}")
 
     args = {
-        k: Configurable._from_config_helper(v)
-        for k, v in config.args.items()
+        k: Specifiable._from_spec_helper(v)
+        for k, v in spec.config.items()
     }
 
     return subclass(**args)
 
   @staticmethod
-  def _to_config_helper(v):
-    if isinstance(v, Configurable):
-      return v.to_config()
+  def _to_spec_helper(v):
+    if isinstance(v, Specifiable):
+      return v.to_spec()
 
     if isinstance(v, List):
-      return [Configurable._to_config_helper(e) for e in v]
+      return [Specifiable._to_spec_helper(e) for e in v]
 
     return v
 
-  def to_config(self) -> Config:
+  def to_spec(self) -> Spec:
     if getattr(type(self), '_key', None) is None:
       raise ValueError(
-          f"'{type(self).__name__}' not registered as Configurable. "
-          f"Decorate ({type(configurable).__name__}) with @configurable")
+          f"'{type(self).__name__}' not registered as Specifiable. "
+          f"Decorate ({type(self).__name__}) with @specifiable")
 
-    args = {k: self._to_config_helper(v) for k, v in self._init_params.items()}
+    args = {k: self._to_spec_helper(v) for k, v in self._init_params.items()}
 
-    return Config(type=self.__class__._key, args=args)
+    return Spec(type=self.__class__._key, config=args)
 
 
 def register(cls, key, error_if_exists) -> None:
   if key is None:
     key = cls.__name__
 
-  if key in KNOWN_CONFIGURABLES and error_if_exists:
-    raise ValueError(f"{key} is already registered for configurable")
+  if key in KNOWN_SPECIFIABLE and error_if_exists:
+    raise ValueError(f"{key} is already registered for specifiable")
 
-  KNOWN_CONFIGURABLES[key] = cls
+  KNOWN_SPECIFIABLE[key] = cls
 
   cls._key = key
 
@@ -111,7 +114,7 @@ def track_init_params(inst, init_method, *args, **kwargs):
   inst._init_params = params
 
 
-def configurable(
+def specifiable(
     my_cls=None,
     /,
     *,
@@ -120,7 +123,7 @@ def configurable(
     on_demand_init=True,
     just_in_time_init=True):
 
-  # register a configurable, track init params for each instance, lazy init
+  # register a specifiable, track init params for each instance, lazy init
   def _wrapper(cls):
     register(cls, key, error_if_exists)
 
@@ -140,9 +143,9 @@ def configurable(
       if '_init_params' not in self.__dict__:
         track_init_params(self, original_init, *args, **kwargs)
 
-        # If it is not a nested configurable, we choose whether to skip original
+        # If it is not a nested specifiable, we choose whether to skip original
         # init call based on options. Otherwise, we always call original init
-        # for inner (parent/grandparent/etc) configurable.
+        # for inner (parent/grandparent/etc) specifiable.
         if (on_demand_init and not run_init) or \
             (not on_demand_init and just_in_time_init):
           return
@@ -158,6 +161,9 @@ def configurable(
     #   return origin_getattribute(self, x)
 
     #cls.__getattribute__ = new_get_attribute
+
+    def run_init(self):
+      original_init(self, **self._init_params)
 
     def new_getattr(self, name):
       if name == '_nested_getattr' or \
@@ -187,15 +193,16 @@ def configurable(
       cls.__getattr__ = new_getattr
 
     cls.__init__ = new_init
-    cls.to_config = Configurable.to_config
-    cls._to_config_helper = staticmethod(Configurable._to_config_helper)
-    cls.from_config  = classmethod(Configurable.from_config)  # type: ignore
-    cls._from_config_helper = staticmethod(Configurable._from_config_helper)
+    cls._run_init = run_init
+    cls.to_spec = Specifiable.to_spec
+    cls._to_spec_helper = staticmethod(Specifiable._to_spec_helper)
+    cls.from_spec  = classmethod(Specifiable.from_spec)  # type: ignore
+    cls._from_spec_helper = staticmethod(Specifiable._from_spec_helper)
     return cls
 
   if my_cls is None:
-    # support @configurable(...)
+    # support @specifiable(...)
     return _wrapper
 
-  # support @configurable without arguments
+  # support @specifiable without arguments
   return _wrapper(my_cls)
