@@ -155,11 +155,11 @@ class _RunEnsembleDetector(
     model_uuid = f"{self._ensemble_detector._model_id}:{uuid.uuid4().hex[:6]}"
 
     model_results = []
-    assert self._ensemble_detector._learners is not None
-    if not self._ensemble_detector._learners:
+    assert self._ensemble_detector._sub_detectors is not None
+    if not self._ensemble_detector._sub_detectors:
       raise ValueError(f"No detectors found at {model_uuid}")
 
-    for idx, detector in enumerate(self._ensemble_detector._learners):
+    for idx, detector in enumerate(self._ensemble_detector._sub_detectors):
       if isinstance(detector, EnsembleAnomalyDetector):
         score_result = (
             input | f"Run Ensemble Detector at index {idx} ({model_uuid})" >>
@@ -225,21 +225,9 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
                                                               AnomalyResult]]]):
   def __init__(
       self,
-      detectors: List[AnomalyDetector],
-      aggregation_strategy: Optional[AggregationFn] = None,
-      threshold_criterion: Optional[ThresholdFn] = None,
-      root_model_id: Optional[str] = None,
+      detector: AnomalyDetector,
   ) -> None:
-
-    if root_model_id is None:
-      root_model_id = "root"
-    self._root = EnsembleAnomalyDetector(
-        model_id=root_model_id,
-        learners=detectors,
-        threshold_criterion=threshold_criterion,
-        aggregation_strategy=aggregation_strategy)
-
-    object.__setattr__(self._root, "model_id", root_model_id)
+    self._root_detector = detector
 
   def maybe_add_key(
       self, element: Tuple[Any, beam.Row]) -> Tuple[Any, Tuple[Any, beam.Row]]:
@@ -251,10 +239,12 @@ class AnomalyDetection(beam.PTransform[beam.PCollection[Tuple[Any, beam.Row]],
       input: beam.PCollection[Tuple[Any, beam.Row]],
   ) -> beam.PCollection[Tuple[Any, AnomalyResult]]:
 
-    ret: Any = (
-        input
-        | "Add temp key" >> beam.Map(self.maybe_add_key)
-        | _RunEnsembleDetector(self._root))
+    keyed_input = (input | "Add temp key" >> beam.Map(self.maybe_add_key))
+
+    if isinstance(self._root_detector, EnsembleAnomalyDetector):
+      ret = (keyed_input | _RunEnsembleDetector(self._root_detector))
+    else:
+      ret = (keyed_input | _RunOneDetector(self._root_detector))
 
     remove_temp_key_fn: Callable[[Any, Tuple[Any, AnomalyResult]],
                                  Tuple[Any,

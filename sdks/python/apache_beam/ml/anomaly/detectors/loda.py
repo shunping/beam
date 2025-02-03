@@ -86,6 +86,6 @@ class Loda(EnsembleAnomalyDetector):
       learners.append(LodaWeakLearner(**kwargs))
     super().__init__(
         n=n,
-        learners=learners,
+        sub_detectors=learners,
         aggregation_strategy=aggregation_strategy,
         **kwargs)

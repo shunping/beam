@@ -25,6 +25,7 @@ from apache_beam.ml.anomaly.aggregations import AverageScore
 from apache_beam.ml.anomaly.aggregations import AnyVote
 from apache_beam.ml.anomaly.base import AnomalyResult
 from apache_beam.ml.anomaly.base import AnomalyPrediction
+from apache_beam.ml.anomaly.base import EnsembleAnomalyDetector
 from apache_beam.ml.anomaly.detectors.sad import StandardAbsoluteDeviation
 from apache_beam.ml.anomaly.detectors.loda import Loda
 from apache_beam.ml.anomaly.transforms import AnomalyDetection
@@ -59,19 +60,17 @@ class TestAnomalyDetection(unittest.TestCase):
         AnomalyPrediction(
             model_id='sad_x1', score=0.16452254913212455, label=0, threshold=3),
     ]
-    detectors = []
-    detectors.append(
-        StandardAbsoluteDeviation(
+    detector = StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
-            model_id="sad_x1"))
+            model_id="sad_x1")
 
     with TestPipeline() as p:
       result = (
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors))
+          | AnomalyDetection(detector))
       assert_that(
           result,
           equal_to([
@@ -105,13 +104,13 @@ class TestAnomalyDetection(unittest.TestCase):
             model_id='sad_x2', score=0.5368754921931594, label=0, threshold=2),
     ]
 
-    detectors = []
-    detectors.append(
+    sub_detectors = []
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
-    detectors.append(
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
@@ -121,7 +120,7 @@ class TestAnomalyDetection(unittest.TestCase):
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors))
+          | AnomalyDetection(EnsembleAnomalyDetector(sub_detectors)))
 
       assert_that(
           result,
@@ -133,24 +132,24 @@ class TestAnomalyDetection(unittest.TestCase):
                for input,
                decision in zip(self._input, sad_x2_expected)]))
 
-  def test_multiple_detectors_with_aggregation(self):
+  def test_multiple_sub_detectors_with_aggregation(self):
     aggregated = [
-        AnomalyPrediction(model_id="root", label=0),
-        AnomalyPrediction(model_id="root", label=0),
-        AnomalyPrediction(model_id="root", label=0),
-        AnomalyPrediction(model_id="root", label=0),
-        AnomalyPrediction(model_id="root", label=1),
-        AnomalyPrediction(model_id="root", label=1),
-        AnomalyPrediction(model_id="root", label=0),
+        AnomalyPrediction(model_id="custom", label=0),
+        AnomalyPrediction(model_id="custom", label=0),
+        AnomalyPrediction(model_id="custom", label=0),
+        AnomalyPrediction(model_id="custom", label=0),
+        AnomalyPrediction(model_id="custom", label=1),
+        AnomalyPrediction(model_id="custom", label=1),
+        AnomalyPrediction(model_id="custom", label=0),
     ]
 
-    detectors = []
-    detectors.append(
+    sub_detectors = []
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             features=["x1"],
             threshold_criterion=FixedThreshold(3),
             model_id="sad_x1"))
-    detectors.append(
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             features=["x2"],
             threshold_criterion=FixedThreshold(2),
@@ -160,7 +159,7 @@ class TestAnomalyDetection(unittest.TestCase):
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors, aggregation_strategy=AnyVote()))
+          | AnomalyDetection(EnsembleAnomalyDetector(sub_detectors, aggregation_strategy=AnyVote())))
 
       assert_that(
           result,
@@ -184,14 +183,13 @@ class TestAnomalyDetection(unittest.TestCase):
     import numpy as np
     np.random.seed(12345)
 
-    detectors = []
-    detectors.append(Loda(n_init=2, n=3, aggregation_strategy=AverageScore()))
+    detector = Loda(n_init=2, n=3, aggregation_strategy=AverageScore())
     with beam.Pipeline() as p:
       result = (
           p | beam.Create(self._input)
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
-          | AnomalyDetection(detectors))
+          | AnomalyDetection(detector))
 
       assert_that(
           result,
@@ -209,7 +207,8 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
   @parameterized.expand([[True, True, None], [True, True, "new_root"],
                          [True, False, None], [True, False, "new_root"],
                          [False, True, None], [False, True, "new_root"],
-                         [False, False, None], [False, False, "new_root"]])
+                         [False, False, None], [False, False, "new_root"]
+                        ])
   def test_model_id(self, use_threshold, use_aggregation, root_model_id):
     if use_threshold:
       threshold_fn = FixedThreshold(3.0)
@@ -224,21 +223,21 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
     else:
       aggregation_fn = None
 
-    detectors = []
-    detectors.append(
+    sub_detectors = []
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             features=["x1"], threshold_criterion=threshold_fn))
-    detectors.append(
+    sub_detectors.append(
         StandardAbsoluteDeviation(
             model_id="sad_x2",
             features=["x2"],
             threshold_criterion=threshold_fn))
-    detectors.append(
+    sub_detectors.append(
         Loda(
             features=["x1", "x2"],
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_fn))
-    detectors.append(
+    sub_detectors.append(
         Loda(
             model_id="ensemble_2",
             algorithm="loda",
@@ -246,17 +245,17 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
             aggregation_strategy=AverageScore(),
             threshold_criterion=threshold_fn))
 
-    model_id_1 = detectors[0]._model_id
+    model_id_1 = sub_detectors[0]._model_id
     self.assertEqual(model_id_1, "sad")
 
-    model_id_2 = detectors[1]._model_id
+    model_id_2 = sub_detectors[1]._model_id
     self.assertEqual(model_id_2, "sad_x2")
 
-    model_id_3 = detectors[2]._model_id
+    model_id_3 = sub_detectors[2]._model_id
     self.assertEqual(model_id_3, "loda")
     model_id_3 = "loda"
 
-    model_id_4 = detectors[3]._model_id
+    model_id_4 = sub_detectors[3]._model_id
     self.assertEqual(model_id_4, "ensemble_2")
 
     if use_aggregation:
@@ -264,7 +263,7 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
       if use_threshold:
         if root_model_id is None:
           predictions = [
-              AnomalyPrediction(model_id="root", label=0),
+              AnomalyPrediction(model_id="custom", label=0),
           ]
         else:
           predictions = [
@@ -273,7 +272,7 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
       else:
         if root_model_id is None:
           predictions = [
-              AnomalyPrediction(model_id="root", score=0),
+              AnomalyPrediction(model_id="custom", score=0),
           ]
         else:
           predictions = [
@@ -305,9 +304,9 @@ class TestAnomalyDetectionModelId(unittest.TestCase):
           # TODO: get rid of this conversion between BeamSchema to beam.Row.
           | beam.Map(lambda t: (t[0], beam.Row(**t[1]._asdict())))
           | AnomalyDetection(
-              detectors,
+              EnsembleAnomalyDetector(sub_detectors=sub_detectors,
               aggregation_strategy=aggregation_fn,
-              root_model_id=root_model_id))
+              model_id=root_model_id)))
 
       _ = result | beam.Map(print)
 

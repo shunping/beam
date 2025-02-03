@@ -175,7 +175,7 @@ class TestEnsembleAnomalyDetector(unittest.TestCase):
     d = EnsembleAnomalyDetector(model_id="my_dummy_ensemble_2")
     self.assertEqual(d._model_id, "my_dummy_ensemble_2")
 
-  def test_from_and_to_specurable(self):
+  def test_from_and_to_specifiable(self):
     d1 = self.DummyWeakLearner(my_arg=1)
     d2 = self.DummyWeakLearner(my_arg=2)
     ensemble = self.DummyEnsemble(

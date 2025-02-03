@@ -79,7 +79,7 @@ class AnomalyDetector(abc.ABC):
       threshold_criterion: Optional[ThresholdFn] = None,
       **kwargs):
     self._model_id = model_id if model_id is not None else getattr(
-        self, '_key', None)
+        self, '_key', 'unknown')
     self._features = features
     self._target = target
     self._threshold_criterion = threshold_criterion
@@ -96,16 +96,16 @@ class AnomalyDetector(abc.ABC):
 class EnsembleAnomalyDetector(AnomalyDetector):
   def __init__(
       self,
-      learners: Optional[List[AnomalyDetector]] = None,
+      sub_detectors: Optional[List[AnomalyDetector]] = None,
       aggregation_strategy: Optional[AggregationFn] = None,
       **kwargs):
-    if "model_id" not in kwargs:
+    if "model_id" not in kwargs or kwargs["model_id"] is None:
       kwargs["model_id"] = getattr(self, '_key', 'custom')
 
     super().__init__(**kwargs)
 
     self._aggregation_strategy = aggregation_strategy
-    self._learners = learners
+    self._sub_detectors = sub_detectors
 
   def learn_one(self, x: beam.Row) -> None:
     raise NotImplementedError
