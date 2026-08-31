@@ -110,7 +110,7 @@ class Secret(abc.ABC):
     if not secret_manager:
       raise ValueError(
           f'Invalid secret type {secret_type}, currently only '
-          'GcpSecret and GcpHsmGeneratedSecret are supported')
+          'GcpSecret, GcpHsmGeneratedSecret, and AwsSecret are supported')
 
     return cls.from_json(json.dumps(param_map), secret_manager)
 
@@ -163,7 +163,7 @@ class Secret(abc.ABC):
           return secret_cls(spec)
       else:
         raise ValueError(
-            f"Unsupported secret manager: '{secret_manager_name}'. Currently supported options: 'GoogleCloudSecretManager', 'GoogleCloudHsmGeneratedSecretManager'."
+            f"Unsupported secret manager: '{secret_manager_name}'. Currently supported options: 'GoogleCloudSecretManager', 'GoogleCloudHsmGeneratedSecretManager', 'AwsSecretsManager'."
         )
 
     # If secret_manager is not set or empty, check if spec is a JSON specification dict
@@ -269,6 +269,122 @@ class GcpSecret(Secret):
 
   def __eq__(self, secret):
     return self._version_name == getattr(secret, '_version_name', None)
+
+
+class AwsSecret(Secret):
+  """A secret manager implementation that retrieves secrets from AWS Secrets
+  Manager.
+  """
+  def __init__(
+      self,
+      secret_id: str,
+      version_id: Optional[str] = None,
+      version_stage: Optional[str] = None,
+      region_name: Optional[str] = None,
+      endpoint_url: Optional[str] = None):
+    """Initializes an AwsSecret object.
+
+    Args:
+      secret_id: The ARN or name of the secret in AWS Secrets Manager.
+      version_id: The unique identifier of the version of the secret.
+      version_stage: The staging label of the version of the secret (e.g. 'AWSCURRENT').
+      region_name: The AWS region name. If not specified, resolved from environment
+        or default AWS session.
+      endpoint_url: The complete URL to use for the constructed client (e.g. for LocalStack).
+    """
+    super().__init__()
+    self._secret_id = secret_id
+    self._version_id = version_id
+    self._version_stage = version_stage
+    self._region_name = region_name
+    self._endpoint_url = endpoint_url
+
+  @classmethod
+  def from_dict(cls, spec_dict: Dict[str, str]) -> 'AwsSecret':
+    """Initialize AwsSecret from a dictionary specification."""
+    allowed_keys = {
+        'secret_id',
+        'name',
+        'arn',
+        'version_id',
+        'version',
+        'version_stage',
+        'stage',
+        'region_name',
+        'region',
+        'endpoint_url',
+    }
+    invalid_keys = set(spec_dict.keys()) - allowed_keys
+    if invalid_keys:
+      raise ValueError(
+          f"Invalid secret parameter {', '.join(sorted(invalid_keys))}")
+
+    secret_id = (
+        spec_dict.get("secret_id") or spec_dict.get("name") or
+        spec_dict.get("arn"))
+    if not secret_id:
+      raise ValueError("Secret ID or name must be specified in secret spec.")
+
+    version_id = spec_dict.get("version_id") or spec_dict.get("version")
+    version_stage = spec_dict.get("version_stage") or spec_dict.get("stage")
+    region_name = (
+        spec_dict.get("region_name") or spec_dict.get("region") or
+        os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"))
+    endpoint_url = spec_dict.get("endpoint_url")
+
+    return cls(
+        secret_id=secret_id,
+        version_id=version_id,
+        version_stage=version_stage,
+        region_name=region_name,
+        endpoint_url=endpoint_url,
+    )
+
+  def get_secret_bytes(self) -> bytes:
+    try:
+      import base64
+      import boto3
+
+      client_kwargs = {}
+      if self._region_name:
+        client_kwargs['region_name'] = self._region_name
+      if self._endpoint_url:
+        client_kwargs['endpoint_url'] = self._endpoint_url
+
+      client = boto3.client('secretsmanager', **client_kwargs)
+
+      request_kwargs = {'SecretId': self._secret_id}
+      if self._version_id:
+        request_kwargs['VersionId'] = self._version_id
+      if self._version_stage:
+        request_kwargs['VersionStage'] = self._version_stage
+
+      response = client.get_secret_value(**request_kwargs)
+      if 'SecretString' in response:
+        return response['SecretString'].encode('utf-8')
+      elif 'SecretBinary' in response:
+        binary_data = response['SecretBinary']
+        if isinstance(binary_data, str):
+          return base64.b64decode(binary_data)
+        return binary_data
+      else:
+        raise ValueError(
+            f"Secret '{self._secret_id}' contains neither SecretString nor SecretBinary."
+        )
+    except Exception as e:
+      raise RuntimeError(
+          'Failed to retrieve secret bytes for secret '
+          f'{self._secret_id} with exception {e}')
+
+  def __eq__(self, other: Any) -> bool:
+    if not isinstance(other, AwsSecret):
+      return False
+    return (
+        self._secret_id == other._secret_id and
+        self._version_id == other._version_id and
+        self._version_stage == other._version_stage and
+        self._region_name == other._region_name and
+        self._endpoint_url == other._endpoint_url)
 
 
 class GcpHsmGeneratedSecret(Secret):
@@ -458,9 +574,14 @@ class GcpHsmGeneratedSecret(Secret):
 _SECRET_TYPE_TO_SECRET_MANAGER: dict[str, str] = {
     "gcpsecret": "GoogleCloudSecretManager",
     "gcphsmgeneratedsecret": "GoogleCloudHsmGeneratedSecretManager",
+    "awssecret": "AwsSecretsManager",
+    "awssecretsmanager": "AwsSecretsManager",
 }
 
 _SECRET_CLASSES: dict[str, Any] = {
     "googlecloudsecretmanager": "GcpSecret",
     "googlecloudhsmgeneratedsecretmanager": "GcpHsmGeneratedSecret",
+    "awssecretsmanager": "AwsSecret",
+    "awssecretmanager": "AwsSecret",
+    "awssecret": "AwsSecret",
 }

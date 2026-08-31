@@ -23,6 +23,7 @@ from parameterized import param
 from parameterized import parameterized
 
 from apache_beam.utils.annotations import BeamDeprecationWarning
+from apache_beam.utils.secret import AwsSecret
 from apache_beam.utils.secret import GcpHsmGeneratedSecret
 from apache_beam.utils.secret import GcpSecret
 from apache_beam.utils.secret import RawSecret
@@ -32,6 +33,11 @@ try:
   from google.cloud import secretmanager
 except ImportError:
   secretmanager = None  # type: ignore[assignment]
+
+try:
+  import boto3
+except ImportError:
+  boto3 = None  # type: ignore[assignment]
 
 
 class SecretTest(unittest.TestCase):
@@ -45,6 +51,12 @@ class SecretTest(unittest.TestCase):
       param(
           secret_string='type:gcpsecreT;version_name:my_secret/versions/latest',
           secret=GcpSecret('my_secret/versions/latest')),
+      param(
+          secret_string='type:AwsSecret;secret_id:my_aws_secret',
+          secret=AwsSecret('my_aws_secret')),
+      param(
+          secret_string='type:awssecreT;name:my_aws_secret;region:us-west-2',
+          secret=AwsSecret('my_aws_secret', region_name='us-west-2')),
   ])
   def test_secret_manager_parses_correctly(self, secret_string, secret):
     self.assertEqual(secret, Secret.parse_secret_option(secret_string))
@@ -59,6 +71,12 @@ class SecretTest(unittest.TestCase):
       param(
           secret_string='type:gcpsecreT;version_name:foo;extra:val',
           exception_str='Invalid secret parameter extra'),
+      param(
+          secret_string='type:awssecreT',
+          exception_str='Secret ID or name must be specified in secret spec'),
+      param(
+          secret_string='type:awssecreT;name:foo;invalid_key:bar',
+          exception_str='Invalid secret parameter invalid_key'),
   ])
   def test_secret_manager_throws_on_invalid(self, secret_string, exception_str):
     with self.assertRaisesRegex(Exception, exception_str):
@@ -348,6 +366,155 @@ class GcpHsmGeneratedSecretTest(unittest.TestCase):
     self.assertIsNone(state["_cached_secret_bytes"])
 
 
+@unittest.skipIf(boto3 is None, 'AWS dependencies are not installed')
+class AwsSecretTest(unittest.TestCase):
+  @mock.patch('boto3.client')
+  def test_aws_secret_string_success(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {
+        'SecretString': 'my-aws-secret-string'
+    }
+
+    spec_dict = {'name': 'my-secret', 'region': 'us-east-1'}
+    secret = AwsSecret.from_dict(spec_dict)
+
+    secret_val = secret.get_str(cacheSecret=True)
+    self.assertEqual(secret_val, 'my-aws-secret-string')
+    secret_bytes = secret.get_bytes(cacheSecret=True)
+    self.assertEqual(secret_bytes, b'my-aws-secret-string')
+    mock_boto3_client.assert_called_once_with(
+        'secretsmanager', region_name='us-east-1')
+    mock_sm.get_secret_value.assert_called_once_with(SecretId='my-secret')
+
+    # Second call with cacheSecret=True should return cached value without calling client again
+    mock_sm.reset_mock()
+    mock_boto3_client.reset_mock()
+    secret_val_cached = secret.get_str(cacheSecret=True)
+    self.assertEqual(secret_val_cached, 'my-aws-secret-string')
+    mock_sm.get_secret_value.assert_not_called()
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_binary_bytes_success(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {
+        'SecretBinary': b'my-binary-secret'
+    }
+
+    spec_dict = {'secret_id': 'my-secret'}
+    secret = AwsSecret.from_dict(spec_dict)
+
+    secret_bytes = secret.get_bytes()
+    self.assertEqual(secret_bytes, b'my-binary-secret')
+    self.assertIsNone(secret._cached_secret_bytes)
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_binary_base64_string_success(self, mock_boto3_client):
+    import base64
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    encoded = base64.b64encode(b'my-b64-secret').decode('utf-8')
+    mock_sm.get_secret_value.return_value = {
+        'SecretBinary': encoded
+    }
+
+    secret = AwsSecret(secret_id='my-secret')
+    secret_bytes = secret.get_bytes()
+    self.assertEqual(secret_bytes, b'my-b64-secret')
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_version_and_stage_options(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {
+        'SecretString': 'versioned-secret-val'
+    }
+
+    spec_dict = {
+        'name': 'my-secret',
+        'version_id': 'v-12345',
+        'stage': 'AWSCURRENT',
+        'endpoint_url': 'http://localhost:4566'
+    }
+    secret = AwsSecret.from_dict(spec_dict)
+    secret_val = secret.get_str()
+    self.assertEqual(secret_val, 'versioned-secret-val')
+    mock_boto3_client.assert_called_once_with(
+        'secretsmanager', endpoint_url='http://localhost:4566')
+    mock_sm.get_secret_value.assert_called_once_with(
+        SecretId='my-secret', VersionId='v-12345', VersionStage='AWSCURRENT')
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_getstate_clears_cached_secret(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {
+        'SecretString': 'cached-val'
+    }
+
+    secret = AwsSecret('my-secret')
+    secret.get_str(cacheSecret=True)
+    self.assertEqual(secret._cached_secret_bytes, b'cached-val')
+
+    state = secret.__getstate__()
+    self.assertIsNone(state['_cached_secret_bytes'])
+
+  @mock.patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'eu-central-1'})
+  @mock.patch('boto3.client')
+  def test_aws_secret_env_region_fallback(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {
+        'SecretString': 'eu-secret-val'
+    }
+
+    spec_dict = {'name': 'my-eu-secret'}
+    secret = AwsSecret.from_dict(spec_dict)
+    self.assertEqual(secret._region_name, 'eu-central-1')
+
+    secret_val = secret.get_str()
+    self.assertEqual(secret_val, 'eu-secret-val')
+    mock_boto3_client.assert_called_once_with(
+        'secretsmanager', region_name='eu-central-1')
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_failure_raises_runtime_error(self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.side_effect = Exception('Secret not found')
+
+    secret = AwsSecret('non-existent-secret')
+    with self.assertRaises(RuntimeError) as ctx:
+      secret.get_str()
+    self.assertIn('Secret not found', str(ctx.exception))
+
+  @mock.patch('boto3.client')
+  def test_aws_secret_missing_payload_raises_runtime_error(
+      self, mock_boto3_client):
+    mock_sm = mock.MagicMock()
+    mock_boto3_client.return_value = mock_sm
+    mock_sm.get_secret_value.return_value = {}
+
+    secret = AwsSecret('empty-payload-secret')
+    with self.assertRaises(RuntimeError) as ctx:
+      secret.get_str()
+    self.assertIn(
+        'contains neither SecretString nor SecretBinary', str(ctx.exception))
+
+  def test_ill_formed_missing_secret_name_raises_value_error(self):
+    spec_dict = {'region': 'us-east-1'}
+    with self.assertRaises(ValueError) as ctx:
+      AwsSecret.from_dict(spec_dict)
+    self.assertIn('Secret ID or name must be specified', str(ctx.exception))
+
+  def test_invalid_parameter_raises_value_error(self):
+    spec_dict = {'name': 'my-secret', 'unknown_param': 'val'}
+    with self.assertRaises(ValueError) as ctx:
+      AwsSecret.from_dict(spec_dict)
+    self.assertIn('Invalid secret parameter unknown_param', str(ctx.exception))
+
+
 class RawSecretTest(unittest.TestCase):
   def test_raw_secret_str(self):
     secret = RawSecret("STATIC_SECRET_")
@@ -403,6 +570,25 @@ class SecretFactoryTest(unittest.TestCase):
           spec=spec_dict,  # type: ignore[arg-type]
           secret_manager="GoogleCloudSecretManager")
 
+  def test_secret_factory_aws(self):
+    spec = json.dumps({"name": "test-aws-secret", "region": "us-east-1"})
+
+    secret_aws = Secret.from_json(
+        spec=spec, secret_manager="AwsSecretsManager")
+    self.assertIsInstance(secret_aws, AwsSecret)
+    self.assertEqual(secret_aws._secret_id, "test-aws-secret")
+    self.assertEqual(secret_aws._region_name, "us-east-1")
+
+    # When secret_manager is awssecret
+    secret_aws2 = Secret.from_json(spec=spec, secret_manager="awssecret")
+    self.assertIsInstance(secret_aws2, AwsSecret)
+
+    # When spec is a plain string
+    secret_plain = Secret.from_json(
+        spec="my-secret-arn", secret_manager="AwsSecretsManager")
+    self.assertIsInstance(secret_plain, AwsSecret)
+    self.assertEqual(secret_plain._secret_id, "my-secret-arn")
+
   def test_secret_factory_hsm(self):
     hsm_spec = json.dumps({
         "project_id": "p",
@@ -441,6 +627,14 @@ class SecretFactoryTest(unittest.TestCase):
     self.assertEqual(gcp1, gcp2)
     self.assertNotEqual(gcp1, gcp3)
     self.assertNotEqual(gcp1, raw1)
+
+    aws1 = AwsSecret.from_dict({"name": "sec", "region": "us-east-1"})
+    aws2 = AwsSecret.from_dict({"name": "sec", "region": "us-east-1"})
+    aws3 = AwsSecret.from_dict({"name": "other", "region": "us-east-1"})
+    self.assertEqual(aws1, aws2)
+    self.assertNotEqual(aws1, aws3)
+    self.assertNotEqual(aws1, gcp1)
+    self.assertNotEqual(aws1, raw1)
 
     hsm1 = GcpHsmGeneratedSecret("p", "l", "r", "k", "j")
     hsm2 = GcpHsmGeneratedSecret("p", "l", "r", "k", "j")
